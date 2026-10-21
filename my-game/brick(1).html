@@ -1,0 +1,1879 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>여의봉 보석깨기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #FFF8E8;
+    --cream-deep: #F3E6C6;
+    --ink: #2A1B3D;
+    --ink-soft: #6E5A86;
+    --night: #1A1442;
+    --night-deep: #110C2E;
+    --grid: rgba(255, 248, 232, 0.07);
+    --neon-pink: #FF5FA2;
+    --neon-mint: #5CF2C8;
+    --gold: #FFD34D;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { min-height: 100%; }
+
+  body {
+    font-family: "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 1px 1px, rgba(42, 27, 61, 0.12) 1px, transparent 0) 0 0 / 14px 14px,
+      var(--cream);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 32px;
+    overflow-x: hidden;
+  }
+
+  /* ── 오락기 본체: 크림색 몸통 + 두꺼운 테두리 + 딱 떨어지는 그림자 ── */
+  .cabinet {
+    width: min(520px, 100%);
+    background: var(--cream);
+    border: 4px solid var(--ink);
+    border-radius: 28px;
+    box-shadow: 8px 8px 0 var(--ink);
+    padding: 18px 18px 20px;
+  }
+
+  .marquee {
+    text-align: center;
+    margin-bottom: 14px;
+  }
+
+  .marquee .sub {
+    font-family: "Jua", sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.3em;
+    color: var(--ink-soft);
+  }
+
+  .marquee h1 {
+    font-family: "Jua", sans-serif;
+    font-weight: 400;
+    font-size: clamp(1.9rem, 7vw, 2.6rem);
+    line-height: 1.1;
+    color: var(--neon-pink);
+    text-shadow:
+      3px 3px 0 var(--ink),
+      -1px -1px 0 var(--ink), 1px -1px 0 var(--ink), -1px 1px 0 var(--ink);
+  }
+
+  /* ── 화면(브라운관) ── */
+  .screen {
+    position: relative;
+    border: 4px solid var(--ink);
+    border-radius: 20px;
+    overflow: hidden;
+    background:
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 24px 24px,
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 24px 24px,
+      radial-gradient(ellipse at 50% 0%, #2B2170 0%, var(--night) 55%, var(--night-deep) 100%);
+  }
+
+  /* 브라운관 주사선 + 가장자리 어둡게 */
+  .screen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px),
+      radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.45) 100%);
+  }
+
+  /* 점수·시간·목숨 줄 */
+  .hud {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 3px dashed rgba(255, 248, 232, 0.25);
+    font-family: "Jua", sans-serif;
+    color: var(--cream);
+  }
+
+  .hud .label {
+    display: block;
+    font-size: 0.72rem;
+    letter-spacing: 0.25em;
+    color: var(--neon-mint);
+  }
+
+  .hud .score,
+  .hud .time {
+    font-size: 1.6rem;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 2px 2px 0 var(--neon-pink);
+  }
+
+  .hud .time-box { text-align: center; }
+
+  .hud .time.warn {
+    color: var(--neon-pink);
+    text-shadow: 2px 2px 0 var(--ink);
+  }
+
+  .hud .lives-box { text-align: right; }
+
+  .hud .lives {
+    font-size: 1.2rem;
+    line-height: 1;
+    letter-spacing: 0.08em;
+  }
+
+  .field {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* 새 줄이 생기면 아래로 스르륵 내려간다 */
+  .field .brick { transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+  /* 흔들림은 보석 자기 가운데를 기준으로 */
+  .field .gem {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  /* 폭탄·다이나마이트 폭발: 번쩍 커지며 사라진다 */
+  .field .blast {
+    transform-box: fill-box;
+    transform-origin: center;
+    pointer-events: none;
+    animation: blast 0.45s ease-out forwards;
+  }
+  @keyframes blast {
+    0% { opacity: 0.95; transform: scale(0.3); }
+    100% { opacity: 0; transform: scale(1.6); }
+  }
+
+  /* 콤보 표시 (글자색은 그 보석 색으로 스크립트가 바꾼다) */
+  .field .combo {
+    font-family: "Jua", sans-serif;
+    font-size: 13px;
+    fill: var(--cream);
+    stroke: var(--ink);
+    stroke-width: 3px;
+    paint-order: stroke;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+  }
+
+  /* 잠깐 늘어난 여의봉 남은 시간 */
+  .field .buff {
+    font-family: "Jua", sans-serif;
+    font-size: 13px;
+    fill: var(--neon-mint);
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+  }
+
+  /* 보석 안 숫자 (남은 횟수) */
+  .field .hp {
+    font-family: "Jua", sans-serif;
+    font-size: 14px;
+    fill: #FFFFFF;
+    stroke: var(--ink);
+    stroke-width: 3px;
+    paint-order: stroke;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+  }
+
+  /* 아이템·알림 글자: 떠오르며 사라진다 */
+  .field .pop {
+    font-family: "Jua", sans-serif;
+    font-size: 17px;
+    fill: var(--cream);
+    stroke: var(--ink);
+    stroke-width: 4px;
+    paint-order: stroke;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+    animation: popUp 0.9s ease-out forwards;
+  }
+
+  .field .pop.banner {
+    font-size: 28px;
+    fill: var(--neon-mint);
+    stroke-width: 6px;
+    animation-duration: 1.8s;
+  }
+
+  @keyframes popUp {
+    0% { opacity: 0; transform: translateY(6px); }
+    15% { opacity: 1; }
+    70% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-28px); }
+  }
+
+  @keyframes popFade {
+    0%, 70% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .field .brick { transition: none; }
+    .field .pop { animation-name: popFade; }
+    .field .blast { animation-name: popFade; }
+  }
+
+  /* ── 결과 화면 (게임 오버 · 시간 초과 · 클리어) ── */
+  .result {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(17, 12, 46, 0.72);
+  }
+
+  .result[hidden] { display: none; }
+
+  .result-card {
+    width: min(310px, 100%);
+    text-align: center;
+    background: var(--cream);
+    border: 4px solid var(--ink);
+    border-radius: 22px;
+    box-shadow: 6px 6px 0 var(--ink);
+    padding: 22px 20px 24px;
+  }
+
+  .result-kicker {
+    font-family: "Jua", sans-serif;
+    font-size: 0.8rem;
+    letter-spacing: 0.3em;
+    color: var(--ink-soft);
+  }
+
+  .result-card h2 {
+    font-family: "Jua", sans-serif;
+    font-weight: 400;
+    font-size: 2.4rem;
+    line-height: 1.15;
+    color: var(--neon-pink);
+    text-shadow: 3px 3px 0 var(--ink);
+    margin: 2px 0 10px;
+  }
+
+  .result-card h2 .emoji { text-shadow: none; }
+
+  .result-note {
+    font-size: 1rem;
+    color: var(--ink-soft);
+    margin-bottom: 8px;
+  }
+
+  .result-line {
+    font-size: 1.1rem;
+    margin-bottom: 6px;
+  }
+
+  .result-line:last-of-type { margin-bottom: 18px; }
+
+  .result-line strong {
+    font-family: "Jua", sans-serif;
+    font-weight: 400;
+    font-size: 1.8rem;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .again-btn {
+    font-family: "Jua", sans-serif;
+    font-size: 1.25rem;
+    color: var(--ink);
+    background: var(--neon-mint);
+    border: 3px solid var(--ink);
+    border-radius: 999px;
+    box-shadow: 0 5px 0 var(--ink);
+    padding: 10px 26px;
+    cursor: pointer;
+    transition: transform 0.08s, box-shadow 0.08s;
+  }
+
+  .again-btn:hover { background: #7FF7D6; }
+  .again-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink); }
+  .again-btn:focus-visible { outline: 3px solid var(--neon-pink); outline-offset: 3px; }
+
+  /* 궁극기 미사일 버튼 */
+  .controls {
+    margin-top: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .sound-btn {
+    font-family: "Jua", sans-serif;
+    font-size: 1rem;
+    color: var(--ink);
+    background: var(--neon-mint);
+    border: 3px solid var(--ink);
+    border-radius: 999px;
+    box-shadow: 0 5px 0 var(--ink);
+    padding: 10px 18px;
+    cursor: pointer;
+    transition: transform 0.08s, box-shadow 0.08s;
+  }
+
+  .sound-btn[aria-pressed="false"] { background: var(--cream-deep); color: var(--ink-soft); }
+  .sound-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink); }
+  .sound-btn:focus-visible { outline: 3px solid var(--neon-pink); outline-offset: 3px; }
+
+  .missile-btn {
+    font-family: "Jua", sans-serif;
+    font-size: 1.2rem;
+    color: var(--ink);
+    background: var(--neon-pink);
+    border: 3px solid var(--ink);
+    border-radius: 999px;
+    box-shadow: 0 5px 0 var(--ink);
+    padding: 10px 24px;
+    cursor: pointer;
+    transition: transform 0.08s, box-shadow 0.08s;
+  }
+
+  .missile-btn:hover:not(:disabled) { background: #FF85B8; }
+  .missile-btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink); }
+  .missile-btn:focus-visible { outline: 3px solid var(--neon-mint); outline-offset: 3px; }
+  .missile-btn:disabled {
+    color: var(--ink-soft);
+    background: var(--cream-deep);
+    box-shadow: 0 2px 0 var(--ink);
+    transform: translateY(3px);
+    cursor: not-allowed;
+  }
+
+  .hint {
+    margin-top: 14px;
+    text-align: center;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: var(--ink-soft);
+  }
+
+  .hint kbd {
+    display: inline-block;
+    min-width: 1.8em;
+    padding: 0 6px;
+    font-family: "Jua", sans-serif;
+    color: var(--ink);
+    background: var(--cream-deep);
+    border: 2px solid var(--ink);
+    border-radius: 8px;
+    box-shadow: 0 2px 0 var(--ink);
+  }
+
+  @media (max-width: 420px) {
+    .cabinet { padding: 14px 12px 16px; border-radius: 22px; box-shadow: 6px 6px 0 var(--ink); }
+    .hud { padding: 10px 12px; gap: 6px; }
+    .hud .score, .hud .time { font-size: 1.3rem; }
+    .hud .lives { font-size: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<main class="cabinet">
+  <header class="marquee">
+    <p class="sub">NEWTRO ARCADE 2026</p>
+    <h1>여의봉 보석깨기</h1>
+  </header>
+
+  <section class="screen" aria-label="게임 화면">
+    <div class="hud">
+      <div>
+        <span class="label">SCORE</span>
+        <span class="score" id="score">000000</span>
+      </div>
+      <div class="time-box">
+        <span class="label">STAGE <span id="stage">1</span></span>
+        <span class="time" id="time">5:00</span>
+      </div>
+      <div class="lives-box">
+        <span class="label">LIFE</span>
+        <span class="lives" id="lives" aria-label="목숨 3개">❤️❤️❤️</span>
+      </div>
+    </div>
+
+    <!-- 놀이판: 가로 480 × 세로 560 칸 기준으로 그린다 (화면 크기에 맞춰 늘었다 줄었다) -->
+    <svg class="field" id="field" viewBox="0 0 480 560" role="img" aria-label="보석 벽돌, 여의봉, 여의주">
+      <defs>
+        <!-- 여의봉 몸통: 붉은 옻칠 -->
+        <linearGradient id="staffBody" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#FF6B6B"/>
+          <stop offset="0.45" stop-color="#D7263D"/>
+          <stop offset="1" stop-color="#7E0E22"/>
+        </linearGradient>
+        <!-- 여의봉 양 끝: 금테 -->
+        <linearGradient id="staffGold" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#FFF1A8"/>
+          <stop offset="0.5" stop-color="#FFC93C"/>
+          <stop offset="1" stop-color="#B07A00"/>
+        </linearGradient>
+        <!-- 여의주(공) -->
+        <radialGradient id="pearl" cx="0.35" cy="0.3" r="0.75">
+          <stop offset="0" stop-color="#FFFFFF"/>
+          <stop offset="0.45" stop-color="#FFF8E8"/>
+          <stop offset="1" stop-color="#FFB547"/>
+        </radialGradient>
+        <filter id="glow" x="-1" y="-1" width="3" height="3">
+          <feGaussianBlur stdDeviation="4" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <!-- 초록 독버섯 모양 틀: 떨어질 때마다 복사해서 쓴다 -->
+        <g id="mushroomShape">
+          <rect x="-5" y="0" width="10" height="11" rx="3.5" fill="#F3E6C6" stroke="#2A1B3D" stroke-width="2"/>
+          <path d="M-14 2 Q -14 -13 0 -13 Q 14 -13 14 2 Z" fill="#3DBE4A" stroke="#2A1B3D" stroke-width="2" stroke-linejoin="round"/>
+          <circle cx="-6" cy="-5" r="2.6" fill="#C6FF6B"/>
+          <circle cx="3" cy="-9" r="2.1" fill="#C6FF6B"/>
+          <circle cx="7.5" cy="-3" r="1.9" fill="#C6FF6B"/>
+          <path d="M-3 4 l2 2 M-1 4 l-2 2 M1 4 l2 2 M3 4 l-2 2" stroke="#2A1B3D" stroke-width="1.2" stroke-linecap="round"/>
+        </g>
+        <!-- 궁극기 미사일 모양 틀: 오른쪽(+x)을 향해 그리고, 날아가는 방향으로 돌린다 -->
+        <g id="missileShape">
+          <path d="M-9 -2 L-17 0 L-9 2 Z" fill="#FFD34D"/>
+          <path d="M-8 -3 L-12 -7 L-4 -3 Z M-8 3 L-12 7 L-4 3 Z" fill="#5CF2C8" stroke="#2A1B3D" stroke-width="1" stroke-linejoin="round"/>
+          <path d="M-9 -3 L4 -3 L10 0 L4 3 L-9 3 Z" fill="#FFF8E8" stroke="#2A1B3D" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M4 -3 L10 0 L4 3 Z" fill="#FF5FA2"/>
+        </g>
+        <!-- 여의주 모양 틀: 공이 생길 때마다 복사해서 쓴다 -->
+        <g id="ballShape" filter="url(#glow)">
+          <circle cx="0" cy="0" r="9" fill="url(#pearl)" stroke="#2A1B3D" stroke-width="2"/>
+          <circle cx="-3" cy="-3" r="2.5" fill="#FFFFFF"/>
+        </g>
+      </defs>
+
+      <!-- 같은 색 연속 깨기 · 콤보 · 어드밴티지 표시 (맨 위 여백) -->
+      <text class="combo" id="comboText" x="240" y="14"></text>
+
+      <g id="bricks"></g>
+
+      <!-- 여의봉(패들): 길이가 바뀌므로 모양은 스크립트의 drawPaddle()이 그린다 -->
+      <g id="paddle" transform="translate(240 520)">
+        <rect class="staff-body" y="0" height="14" rx="7" fill="url(#staffBody)" stroke="#2A1B3D" stroke-width="2.5"/>
+        <rect class="staff-shine" y="3" height="2.5" rx="1.25" fill="#FFFFFF" opacity="0.45"/>
+        <!-- 금테 -->
+        <rect class="cap-left" y="-1" width="20" height="16" rx="7" fill="url(#staffGold)" stroke="#2A1B3D" stroke-width="2.5"/>
+        <rect class="cap-right" y="-1" width="20" height="16" rx="7" fill="url(#staffGold)" stroke="#2A1B3D" stroke-width="2.5"/>
+        <line class="ring-left" y1="0" y2="14" stroke="#B07A00" stroke-width="2"/>
+        <line class="ring-right" y1="0" y2="14" stroke="#B07A00" stroke-width="2"/>
+      </g>
+
+      <!-- 잠깐 늘어난 여의봉 남은 시간 -->
+      <text class="buff" id="buffText" x="240" y="550"></text>
+
+      <!-- 떨어지는 독버섯들 -->
+      <g id="mushrooms"></g>
+
+      <!-- 여의주(공)들: 아이템으로 최대 8개 -->
+      <g id="balls"></g>
+
+      <!-- 궁극기 미사일들 -->
+      <g id="missiles"></g>
+
+      <!-- 떠오르는 글자 (아이템, 새 줄 알림) -->
+      <g id="effects"></g>
+    </svg>
+
+    <!-- 결과 화면: 게임 오버 · 시간 초과 · 클리어 -->
+    <div class="result" id="result" role="dialog" aria-modal="true" aria-labelledby="resultTitle" hidden>
+      <div class="result-card">
+        <p class="result-kicker" id="resultKicker">GAME OVER</p>
+        <h2 id="resultTitle">게임 오버</h2>
+        <p class="result-note" id="resultNote" hidden></p>
+        <p class="result-line" id="resultTimeLine" hidden>걸린 시간 <strong id="clearTime">0분 0초</strong></p>
+        <p class="result-line"><span id="scoreLabel">최종 점수</span> <strong id="finalScore">0</strong>점</p>
+        <button type="button" class="again-btn" id="againBtn">다시 하기</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="controls">
+    <button type="button" class="missile-btn" id="missileBtn">🚀 궁극기 미사일 ×<span id="missileCount">0</span></button>
+    <button type="button" class="sound-btn" id="soundBtn" aria-pressed="true">🔊 소리 켜짐</button>
+  </div>
+
+  <p class="hint">
+    <kbd>S</kbd> 소리 켜기/끄기 · <kbd>M</kbd> 또는 버튼으로 🚀 궁극기 미사일 (가로줄 3·6·9…줄 깰 때마다 1번 생김 · 미사일 10발이 무작위 보석을 −5)<br>
+    <kbd>←</kbd> <kbd>→</kbd> 또는 마우스로 여의봉 이동 · <kbd>Space</kbd> 또는 마우스 클릭으로 여의주 발사<br>
+    5분 안에 보석을 모두 깨요 · 1분마다 새 보석 한 줄 · 보석을 깨면 가끔 아이템!<br>
+    💣 폭탄 = 가로·세로 줄 전부 파괴 · 🧨 다이나마이트 = 주변 8칸 파괴 · 떨어지는 초록 🍄 독버섯은 피하세요
+  </p>
+</main>
+
+<script>
+(function () {
+  // ── 데이터: 줄마다 보석 종류, 깨지기까지 맞아야 하는 횟수(hp), 색 (밝은 면 → 어두운 면 순서) ──
+  var GEMS = [
+    { name: "루비",     hp: 20, top: "#FF9DB0", table: "#FF3D68", left: "#E0234F", right: "#B5123A", bottom: "#8A0B2B", edge: "#5C0620" },
+    { name: "토파즈",   hp: 15, top: "#FFE58F", table: "#FFBF1F", left: "#F29E0C", right: "#D47D05", bottom: "#A85A00", edge: "#6B3A00" },
+    { name: "에메랄드", hp: 10, top: "#9AF3C2", table: "#1FD17A", left: "#12B061", right: "#0A8A4B", bottom: "#066638", edge: "#034427" },
+    { name: "사파이어", hp: 6,  top: "#A6CAFF", table: "#3A7DFF", left: "#2560E0", right: "#1A46B8", bottom: "#11308A", edge: "#0A1D5C" },
+    { name: "크리스탈", hp: 3,  top: "#FFFFFF", table: "#DFF6FF", left: "#F6C9EF", right: "#A8E3FA", bottom: "#7CC6E8", edge: "#3F7FA6" }
+  ];
+
+  var LAYOUT = {
+    cols: 8,
+    side: 18,     // 양옆 여백
+    top: 28,      // 위쪽 여백
+    gap: 6,       // 벽돌 사이
+    height: 26,   // 벽돌 높이
+    rowGap: 8,    // 줄 사이
+    width: 480,
+    bottom: 560   // 놀이판 바닥
+  };
+
+  // 여의봉 설정 (단위: 놀이판 칸, 속도는 1초에 움직이는 칸)
+  var PADDLE = {
+    y: 520,          // 여의봉 윗면 높이
+    start: 108,      // 처음 길이
+    min: 60,         // 가장 짧을 때
+    max: 180,        // 가장 길 때
+    shrink: 16,      // 목숨을 잃을 때마다 줄어드는 길이
+    grow: 24,        // 보석 한 줄을 다 깨면 늘어나는 길이
+    speed: 420,      // 방향키를 누르고 있을 때 속도
+    bounceAngle: 60, // 여의봉 끝에 맞았을 때 튕기는 최대 각도 (가운데는 똑바로 위)
+    edge: 4          // 화면 끝과 남겨 둘 틈
+  };
+  var BALL_R = 9;
+  var START_LIVES = 3;
+
+  // 여의주(공) 설정
+  var BALL = {
+    speed: 480,         // 처음 속도 (1초에 움직이는 칸)
+    maxSpeed: 1500,     // 너무 빨라지지 않게 막는 한계
+    angle: 45,          // 발사 각도 (위쪽에서 기울어진 정도)
+    respawnMs: 600      // 바닥으로 빠진 뒤 여의봉 위에 다시 나타나기까지
+  };
+
+  // 게임 규칙
+  var RULES = {
+    scorePerGem: 10,    // 보석 하나 깨면 +10점
+    itemChance: 0.2,    // 보석을 깰 때 좋은 아이템이 나올 확률 (20%)
+    bombChance: 0.07,     // 보석을 깰 때 💣 폭탄이 터질 확률 (7%): 같은 가로줄 + 세로줄 보석 전부 파괴
+    dynamiteChance: 0.07, // 🧨 다이나마이트가 터질 확률 (7%): 둘레 8칸(상하좌우 + 대각선) 보석 파괴
+    mushroomChance: 0.05, // 초록 독버섯이 떨어질 확률 (5%): 여의봉에 닿으면 목숨 −1
+    maxLives: 5,        // 목숨은 최대 5개까지
+    maxBalls: 8,        // 공은 동시에 최대 8개까지 (공이 전부 바닥으로 빠져야 목숨 −1)
+    timeLimit: 300,     // 제한 시간 5분 (초)
+    newRowEvery: 60,    // 1분마다 새 보석 한 줄
+    speedUpEvery: 8,    // 보석을 (색 상관없이) 8개 깰 때마다
+    speedUpGems: 1.003, //   공 속도 +0.3%
+    speedUpRow: 0.03,   // 가로 한 줄을 다 없앨 때마다 공 속도 +3%씩 쌓인다 (1줄 +3%, 2줄 +6%, 3줄 +9% …)
+    comboAt: 3,         // 같은 색 보석을 연속 3개 깨면 콤보:
+    comboDamage: 2,     //   그 색 보석은 한 번 맞을 때 숫자가 2씩 깎인다
+    advantageAt: 5,     // 같은 색 보석을 연속 5개 깨면 어드밴티지:
+    advantageItemMul: 2, //   좋은 아이템 나올 확률 2배 (20% → 40%)
+    stageSpeedUp: 1.08  // 다음 단계마다 처음 공 속도 8% 빨라짐
+  };
+
+  // 좋은 아이템 (보석을 깨는 순간 바로 얻는다). weight = 나오는 비율
+  //   grow: 여의봉 길이 영구 증가(비율), buff: 잠깐 늘어남(비율, 초), time: 제한 시간 연장(초)
+  var ITEMS = [
+    { id: "life",   text: "❤️ +1",           weight: 2 },
+    { id: "ball1",  text: "여의주 +1",        weight: 2, balls: 1 },
+    { id: "ball2",  text: "여의주 +2",        weight: 2, balls: 2 },
+    { id: "ball4",  text: "여의주 +4",        weight: 1, balls: 4 },
+    { id: "grow1",  text: "여의봉 +0.1%",     weight: 1, grow: 0.001 },
+    { id: "grow3",  text: "여의봉 +0.3%",     weight: 1, grow: 0.003 },
+    { id: "grow5",  text: "여의봉 +0.5%",     weight: 1, grow: 0.005 },
+    { id: "buff10", text: "여의봉 +10% 30초", weight: 1, buff: 0.10, secs: 30 },
+    { id: "buff20", text: "여의봉 +20% 15초", weight: 1, buff: 0.20, secs: 15 },
+    { id: "buff30", text: "여의봉 +30% 10초", weight: 1, buff: 0.30, secs: 10 },
+    { id: "time",   text: "⏱️ +10초",         weight: 2, time: 10 }
+  ];
+
+  // 독버섯 (벌칙): 깬 보석 자리에서 아래로 떨어지고, 여의봉에 닿으면 목숨 −1
+  var MUSHROOM = { r: 12, speed: 170 };
+
+  // 궁극기 미사일: 가로줄을 3줄, 6줄, 9줄… 깰 때마다 1번씩 생긴다 (안 쓰면 쌓인다).
+  //   한 번 쓰면 여의봉에서 작은 미사일 10발이 날아가 무작위 보석의 숫자를 −5
+  //   speed: 1초에 날아가는 칸, gapMs: 미사일 사이 발사 간격, hitR: 보석에 닿았다고 보는 여유
+  var MISSILE = { everyRows: 3, count: 10, damage: 5, speed: 520, gapMs: 70, hitR: 6 };
+
+  // ── 효과음: 파일 없이 Web Audio로 만든다 ──
+  // 보석 종류마다 기본 음 높이가 다르다
+  var GEM_NOTES = [1319, 1175, 1047, 988, 1568];
+  var sfx = (function () {
+    var ctx = null, master = null;
+
+    function ready() {
+      if (!ctx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        ctx = new AC();
+        master = ctx.createGain();
+        master.gain.value = muted ? 0 : 0.25;
+        master.connect(ctx.destination);
+      }
+      if (ctx.state === "suspended") ctx.resume();
+      return ctx;
+    }
+
+    // 종소리 같은 음 하나 (기본음 + 맑은 배음)
+    function bell(freq, at, len, vol) {
+      var t = ctx.currentTime + at;
+      [[1, "triangle", 1], [2.76, "sine", 0.35]].forEach(function (p) {
+        var o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = p[1];
+        o.frequency.value = freq * p[0];
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(vol * p[2], t + 0.005);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        o.connect(g); g.connect(master);
+        o.start(t); o.stop(t + len + 0.02);
+      });
+    }
+
+    // 음이 미끄러지듯 바뀌는 소리 (뿅~)
+    function sweep(from, to, at, len, vol, type) {
+      var t = ctx.currentTime + at;
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type || "triangle";
+      o.frequency.setValueAtTime(from, t);
+      o.frequency.exponentialRampToValueAtTime(to, t + len);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      o.connect(g); g.connect(master);
+      o.start(t); o.stop(t + len + 0.02);
+    }
+
+    function play(fn) {
+      return function () {
+        if (!ready()) return;
+        fn.apply(null, arguments);
+      };
+    }
+
+    // ── 배경 음악: 통통 튀는 8비트 노래 (150 BPM, 8마디 반복) ──
+    // 숫자 = 음 번호 (60 = 가운데 도), 0 = 쉼표. 한 칸 = 8분음표
+    var MELODY = [
+      72, 76, 79, 76, 84, 79, 76, 79,   // C
+      81, 0, 76, 81, 84, 81, 76, 72,    // Am
+      77, 81, 84, 81, 77, 0, 81, 84,    // F
+      83, 0, 79, 83, 86, 83, 79, 74,    // G
+      72, 76, 79, 84, 88, 84, 79, 76,   // C
+      81, 84, 88, 84, 81, 0, 76, 79,    // Am
+      77, 0, 81, 84, 89, 84, 81, 77,    // F
+      79, 83, 86, 91, 86, 0, 79, 0      // G
+    ];
+    var BASS = [48, 45, 41, 43, 48, 45, 41, 43];   // 마디마다 베이스 뿌리음
+    var STEP = 60 / 150 / 2;                       // 8분음표 길이 (초)
+    var bgm = { on: false, timer: null, step: 0, next: 0, gain: null, noise: null };
+
+    function midi(n) { return 440 * Math.pow(2, (n - 69) / 12); }
+
+    // 정해진 시각(t)에 음 하나
+    function tone(freq, t, len, vol, type) {
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type;
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      o.connect(g); g.connect(bgm.gain);
+      o.start(t); o.stop(t + len + 0.02);
+    }
+
+    // 치익 (하이햇)
+    function hat(t) {
+      if (!bgm.noise) {
+        bgm.noise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.05), ctx.sampleRate);
+        var d = bgm.noise.getChannelData(0);
+        for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      }
+      var src = ctx.createBufferSource(), hp = ctx.createBiquadFilter(), g = ctx.createGain();
+      src.buffer = bgm.noise;
+      hp.type = "highpass";
+      hp.frequency.value = 7000;
+      g.gain.setValueAtTime(0.18, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+      src.connect(hp); hp.connect(g); g.connect(bgm.gain);
+      src.start(t);
+    }
+
+    // 쿵 (킥)
+    function kick(t) {
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.setValueAtTime(160, t);
+      o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+      g.gain.setValueAtTime(0.5, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+      o.connect(g); g.connect(bgm.gain);
+      o.start(t); o.stop(t + 0.17);
+    }
+
+    function playStep(i, t) {
+      var m = MELODY[i];
+      if (m) tone(midi(m), t, STEP * 0.85, 0.11, "square");
+      var root = BASS[Math.floor(i / 8)];
+      tone(midi(root + (i % 2 ? 12 : 0)), t, STEP * 0.8, 0.32, "triangle");
+      if (i % 4 === 0) kick(t);
+      if (i % 2 === 1) hat(t);
+    }
+
+    // 조금 앞까지 미리 예약해 두는 방식 (setInterval이 살짝 늦어도 박자가 안 흔들린다)
+    function schedule() {
+      // 다른 탭에 갔다 오면 밀린 음을 한꺼번에 몰아 치지 않고 지금부터 이어 간다
+      if (bgm.next < ctx.currentTime - 0.1) bgm.next = ctx.currentTime + 0.05;
+      while (bgm.next < ctx.currentTime + 0.15) {
+        playStep(bgm.step, bgm.next);
+        bgm.next += STEP;
+        bgm.step = (bgm.step + 1) % MELODY.length;
+      }
+    }
+
+    function startMusic() {
+      if (!ready() || bgm.on) return;
+      if (!bgm.gain) {
+        bgm.gain = ctx.createGain();
+        bgm.gain.gain.value = 0.55;
+        bgm.gain.connect(master);
+      }
+      bgm.on = true;
+      bgm.step = 0;
+      bgm.next = ctx.currentTime + 0.05;
+      schedule();
+      bgm.timer = setInterval(schedule, 25);
+    }
+
+    function stopMusic() {
+      if (!bgm.on) return;
+      bgm.on = false;
+      clearInterval(bgm.timer);
+    }
+
+    // 소리 켜기/끄기 (전체 볼륨만 0으로)
+    var muted = false;
+    try { muted = localStorage.getItem("brickMuted") === "1"; } catch (e) {}
+    function setMuted(m) {
+      muted = m;
+      try { localStorage.setItem("brickMuted", m ? "1" : "0"); } catch (e) {}
+      if (ready()) master.gain.value = m ? 0 : 0.25;
+    }
+
+    return {
+      unlock: ready,
+      startMusic: startMusic,
+      stopMusic: stopMusic,
+      isMuted: function () { return muted; },
+      setMuted: setMuted,
+      // 발사: 뿅! 하고 올라가는 소리
+      launch: play(function () {
+        sweep(330, 1320, 0, 0.18, 0.4, "square");
+        bell(1760, 0.12, 0.2, 0.35);
+      }),
+      // 여의봉에 맞고 튕김: 통!
+      bounce: play(function () {
+        sweep(520, 1040, 0, 0.09, 0.35, "square");
+      }),
+      // 벽에 맞음: 톡 (작게)
+      wall: play(function () {
+        sweep(1400, 1100, 0, 0.05, 0.12, "sine");
+      }),
+      // 독버섯이 떨어지기 시작: 뾰옹~ (불길하게 내려감)
+      mushroom: play(function () {
+        sweep(700, 260, 0, 0.3, 0.3, "triangle");
+      }),
+      // 보석에 맞음: 띵! (숫자가 줄어들수록 음이 조금씩 올라간다)
+      ting: play(function (gi, hp) {
+        bell(GEM_NOTES[gi] * Math.pow(2, (1 - hp / GEMS[gi].hp) * 0.4), 0, 0.18, 0.6);
+      }),
+      // 보석이 깨짐: 짜라랑 (위로 올라가는 세 음)
+      shatter: play(function (gi) {
+        var f = GEM_NOTES[gi] * 1.5;
+        bell(f, 0, 0.25, 0.6);
+        bell(f * 1.26, 0.05, 0.25, 0.5);
+        bell(f * 1.5, 0.1, 0.4, 0.5);
+      }),
+      // 목숨을 잃음: 뾰로롱~ 하고 내려가는 소리
+      lose: play(function () {
+        sweep(880, 160, 0, 0.55, 0.5, "triangle");
+        sweep(440, 80, 0.05, 0.5, 0.25, "square");
+      }),
+      // 아이템 얻음: 또로롱 (빠르게 올라가는 네 음)
+      item: play(function () {
+        [1047, 1319, 1568, 2093].forEach(function (f, i) { bell(f, i * 0.06, 0.3, 0.5); });
+      }),
+      // 콤보·어드밴티지: 쭈욱 올라가는 소리 + 반짝
+      combo: play(function () {
+        sweep(523, 1568, 0, 0.22, 0.4, "square");
+        bell(2093, 0.2, 0.4, 0.5);
+      }),
+      // 새 보석 줄 등장: 둥-둥
+      newRow: play(function () {
+        bell(392, 0, 0.35, 0.6);
+        bell(523, 0.18, 0.5, 0.6);
+      }),
+      // 클리어: 빰빠밤빰~
+      clear: play(function () {
+        [523, 659, 784, 1047].forEach(function (f, i) { bell(f, i * 0.12, 0.35, 0.55); });
+        bell(1319, 0.5, 0.9, 0.5);
+        bell(1568, 0.5, 0.9, 0.4);
+      }),
+      // 폭탄·다이나마이트 폭발: 쾅! (잡음 + 낮게 떨어지는 소리)
+      boom: play(function () {
+        var t = ctx.currentTime, len = 0.5;
+        var buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * len), ctx.sampleRate);
+        var d = buf.getChannelData(0);
+        for (var i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+        var src = ctx.createBufferSource(), lp = ctx.createBiquadFilter(), g = ctx.createGain();
+        src.buffer = buf;
+        lp.type = "lowpass";
+        lp.frequency.setValueAtTime(1800, t);
+        lp.frequency.exponentialRampToValueAtTime(120, t + len);
+        g.gain.setValueAtTime(0.9, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        src.connect(lp); lp.connect(g); g.connect(master);
+        src.start(t);
+        sweep(180, 40, 0, 0.45, 0.7, "sine");
+      }),
+      // 궁극기 미사일 발사: 슈우웅~ 하고 올라가는 소리
+      missile: play(function () {
+        sweep(160, 1400, 0, 0.6, 0.35, "sawtooth");
+        sweep(320, 2000, 0.08, 0.5, 0.2, "square");
+      }),
+      // 게임 오버: 내려가는 세 음
+      over: play(function () {
+        bell(523, 0, 0.3, 0.5);
+        bell(392, 0.18, 0.3, 0.5);
+        bell(262, 0.36, 0.6, 0.5);
+      })
+    };
+  })();
+
+  var SVG_NS = "http://www.w3.org/2000/svg";
+
+  function poly(points, fill, extra) {
+    var p = document.createElementNS(SVG_NS, "polygon");
+    p.setAttribute("points", points.map(function (pt) { return pt.join(","); }).join(" "));
+    p.setAttribute("fill", fill);
+    if (extra) for (var k in extra) p.setAttribute(k, extra[k]);
+    return p;
+  }
+
+  // 에메랄드 컷(모서리를 깎은 직사각형) 보석 하나 그리기
+  // 바깥 g.brick = 줄 이동(아래로 내려가기), 안쪽 g.gem = 흔들림 효과. 서로 겹치지 않게 나눈다.
+  function drawGem(x, y, w, h, gem) {
+    var outerG = document.createElementNS(SVG_NS, "g");
+    outerG.setAttribute("class", "brick");
+    var g = document.createElementNS(SVG_NS, "g");
+    g.setAttribute("class", "gem");
+    outerG.appendChild(g);
+    var c = 6;                  // 바깥 모서리 깎기
+    var ix = 11, iy = 7;        // 가운데 판(테이블) 안쪽 거리
+    var L = x, R = x + w, T = y, B = y + h;
+    var tl = [x + ix, y + iy], tr = [R - ix, y + iy], br = [R - ix, B - iy], bl = [x + ix, B - iy];
+
+    // 바깥 모양(테두리)
+    var outer = [[L + c, T], [R - c, T], [R, T + c], [R, B - c], [R - c, B], [L + c, B], [L, B - c], [L, T + c]];
+    g.appendChild(poly(outer, gem.table, { stroke: gem.edge, "stroke-width": 2.5, "stroke-linejoin": "round" }));
+    // 네 면(위·왼쪽·오른쪽·아래)
+    g.appendChild(poly([[L + c, T], [R - c, T], [R, T + c], tr, tl, [L, T + c]], gem.top));
+    g.appendChild(poly([[L, T + c], tl, bl, [L, B - c]], gem.left));
+    g.appendChild(poly([[R, T + c], [R, B - c], br, tr], gem.right));
+    g.appendChild(poly([[L, B - c], bl, br, [R, B - c], [R - c, B], [L + c, B]], gem.bottom));
+    // 가운데 판
+    g.appendChild(poly([tl, tr, br, bl], gem.table, { stroke: gem.edge, "stroke-opacity": 0.35, "stroke-width": 1 }));
+    // 다시 한 번 바깥 테두리 (면 위에 선명하게)
+    g.appendChild(poly(outer, "none", { stroke: gem.edge, "stroke-width": 2.5, "stroke-linejoin": "round" }));
+    // 반짝이 ✦
+    var sx = L + 9, sy = T + 6, s = 3.5;
+    g.appendChild(poly([[sx, sy - s], [sx + 1.2, sy - 1.2], [sx + s, sy], [sx + 1.2, sy + 1.2], [sx, sy + s], [sx - 1.2, sy + 1.2], [sx - s, sy], [sx - 1.2, sy - 1.2]], "#FFFFFF", { opacity: 0.9 }));
+    return outerG;
+  }
+
+  // ── 상태 ──
+  var state = {
+    stage: 1,
+    paddleX: LAYOUT.width / 2,   // 여의봉 가운데 x
+    paddleW: PADDLE.start,       // 지금 그려진 길이 (목표 길이를 향해 부드럽게 변함)
+    targetW: PADDLE.start,       // 목표 길이
+    lives: START_LIVES,
+    score: 0,
+    elapsed: 0,                  // 이번 단계에서 흐른 시간 (초)
+    nextRowAt: RULES.newRowEvery,
+    started: false,              // 첫 발사를 해야 시간이 흐른다
+    over: false,                 // 게임 오버·시간 초과·클리어 뒤
+    respawning: false,           // 공을 다 놓치고 새 공을 기다리는 중
+    timeBonus: 0,                // ⏱️ 아이템으로 늘어난 시간 (초)
+    broken: 0,                   // 이번 단계에서 깬 보석 수 (8개마다 공 속도 +0.3%)
+    rowsCleared: 0,              // 이번 단계에서 다 없앤 가로줄 수 (줄마다 공 속도 +3%씩 누적)
+    speedMul: 1,                 // 지금까지 쌓인 공 속도 배율 (새 공에도 적용)
+    buff: null,                  // 잠깐 늘어난 여의봉 { mul, left, secs }
+    streak: { gi: -1, count: 0 }, // 연속으로 깬 같은 색 보석 (gi = GEMS 번호)
+    balls: [],                   // { x, y, vx, vy, speed, onPaddle, el }
+    mushrooms: [],               // { x, y, el }
+    missilesLeft: 0,             // 쓸 수 있는 궁극기 미사일 횟수 (가로줄 3줄마다 +1)
+    missiles: [],                // { x, y, vx, vy, target, el }
+    bricks: []                   // bricks[줄][칸] = { el, body, label, hp, alive, x, y, y0, w, h, gi }
+  };
+  var keys = { left: false, right: false };
+
+  var bricksRoot = document.getElementById("bricks");
+  var ballsRoot = document.getElementById("balls");
+  var effectsRoot = document.getElementById("effects");
+  var ballShape = document.getElementById("ballShape");
+  var field = document.getElementById("field");
+  var respawnTimer = null;
+  var resultTimer = null;
+
+  // ── 보석 ──
+  function rowPitch() { return LAYOUT.height + LAYOUT.rowGap; }
+
+  // 보석 한 줄(8개) 만들기. gi = GEMS 번호, line = 위에서 몇 번째 줄 자리에 그릴지
+  function makeRow(gi, line) {
+    var gem = GEMS[gi];
+    var w = (LAYOUT.width - LAYOUT.side * 2 - LAYOUT.gap * (LAYOUT.cols - 1)) / LAYOUT.cols;
+    var y = LAYOUT.top + line * rowPitch();
+    var row = [];
+    for (var col = 0; col < LAYOUT.cols; col++) {
+      var x = LAYOUT.side + col * (w + LAYOUT.gap);
+      var brick = drawGem(x, y, w, LAYOUT.height, gem);
+      brick.setAttribute("data-gem", gem.name);
+      // 보석 가운데 숫자 (남은 횟수)
+      var label = document.createElementNS(SVG_NS, "text");
+      label.setAttribute("class", "hp");
+      label.setAttribute("x", x + w / 2);
+      label.setAttribute("y", y + LAYOUT.height / 2);
+      label.textContent = gem.hp;
+      var body = brick.firstChild;   // 안쪽 g.gem (흔들리는 부분)
+      body.appendChild(label);
+      bricksRoot.appendChild(brick);
+      row.push({ el: brick, body: body, label: label, hp: gem.hp, alive: true, x: x, y: y, y0: y, w: w, h: LAYOUT.height, gi: gi });
+    }
+    return row;
+  }
+
+  function drawBricks() {
+    bricksRoot.textContent = "";
+    state.bricks = [];
+    GEMS.forEach(function (gem, gi) { state.bricks.push(makeRow(gi, gi)); });
+  }
+
+  // 1분마다: 남은 보석을 한 줄 아래로 내리고 맨 위에 새 줄
+  function addRow() {
+    state.bricks.forEach(function (row) {
+      row.forEach(function (k) {
+        k.y += rowPitch();
+        k.el.style.transform = "translateY(" + (k.y - k.y0) + "px)";
+      });
+    });
+    var gi = Math.floor(Math.random() * GEMS.length);
+    state.bricks.unshift(makeRow(gi, 0));
+    sfx.newRow();
+    floatText(LAYOUT.width / 2, 300, "새 보석 줄 등장!", "banner");
+  }
+
+  function bricksLeft() {
+    return state.bricks.some(function (row) { return row.some(function (k) { return k.alive; }); });
+  }
+
+  // ── 맞은 보석 흔들기: 깨지기 직전(숫자 1)이 되면 그 보석은 부르르, 주변 보석은 일렁 ──
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function shakeAround(row, col) {
+    for (var r = row - 1; r <= row + 1; r++) {
+      for (var c = col - 1; c <= col + 1; c++) {
+        var k = state.bricks[r] && state.bricks[r][c];
+        if (!k || !k.alive || !k.body.animate) continue;
+        var self = r === row && c === col;
+        if (reduceMotion) {
+          // 움직임 줄이기: 흔들지 않고 반짝이기만
+          k.body.animate([{ opacity: 1 }, { opacity: self ? 0.45 : 0.75 }, { opacity: 1 }], { duration: 260 });
+        } else if (self) {
+          k.body.animate([
+            { transform: "translateX(0) rotate(0deg)" },
+            { transform: "translateX(-3px) rotate(-3deg)" },
+            { transform: "translateX(3px) rotate(3deg)" },
+            { transform: "translateX(-2px) rotate(-2deg)" },
+            { transform: "translateX(2px) rotate(1deg)" },
+            { transform: "translateX(0) rotate(0deg)" }
+          ], { duration: 320, easing: "ease-out" });
+        } else {
+          k.body.animate([
+            { transform: "scale(1, 1)" },
+            { transform: "scale(1.05, 0.93)" },
+            { transform: "scale(0.97, 1.04)" },
+            { transform: "scale(1, 1)" }
+          ], { duration: 380, easing: "ease-in-out", delay: 40 });
+        }
+      }
+    }
+  }
+
+  // ── 여의봉 그리기: 가운데(x)를 기준으로 길이(w)만큼 ──
+  var paddle = document.getElementById("paddle");
+  var parts = {
+    body: paddle.querySelector(".staff-body"),
+    shine: paddle.querySelector(".staff-shine"),
+    capL: paddle.querySelector(".cap-left"),
+    capR: paddle.querySelector(".cap-right"),
+    ringL: paddle.querySelector(".ring-left"),
+    ringR: paddle.querySelector(".ring-right")
+  };
+
+  function drawPaddle() {
+    var w = state.paddleW, half = w / 2;
+    parts.body.setAttribute("x", -half);
+    parts.body.setAttribute("width", w);
+    parts.shine.setAttribute("x", -half + 10);
+    parts.shine.setAttribute("width", Math.max(0, w - 20));
+    parts.capL.setAttribute("x", -half);
+    parts.capR.setAttribute("x", half - 20);
+    parts.ringL.setAttribute("x1", -half + 14);
+    parts.ringL.setAttribute("x2", -half + 14);
+    parts.ringR.setAttribute("x1", half - 14);
+    parts.ringR.setAttribute("x2", half - 14);
+    paddle.setAttribute("transform", "translate(" + state.paddleX + " " + PADDLE.y + ")");
+  }
+
+  // 여의봉이 화면 밖으로 나가지 않게
+  function clampPaddle() {
+    var half = state.paddleW / 2;
+    var minX = PADDLE.edge + half;
+    var maxX = LAYOUT.width - PADDLE.edge - half;
+    state.paddleX = Math.min(maxX, Math.max(minX, state.paddleX));
+  }
+
+  function setPaddleLength(w) {
+    state.targetW = Math.min(PADDLE.max, Math.max(PADDLE.min, w));
+  }
+
+  // 지금 보여야 할 여의봉 길이 = 기본 길이 × (1 + 잠깐 늘어남)
+  function effectiveWidth() {
+    var mul = state.buff ? 1 + state.buff.mul : 1;
+    return Math.min(LAYOUT.width - PADDLE.edge * 2, state.targetW * mul);
+  }
+
+  var buffText = document.getElementById("buffText");
+  function paintBuff() {
+    if (!state.buff) { buffText.textContent = ""; return; }
+    buffText.textContent = "🪄 여의봉 +" + Math.round(state.buff.mul * 100) + "% · " + Math.ceil(state.buff.left) + "초";
+  }
+
+  // ── 여의주(공) ──
+  function stageSpeed() {
+    return Math.min(BALL.maxSpeed, BALL.speed * Math.pow(RULES.stageSpeedUp, state.stage - 1));
+  }
+
+  function makeBall(x, y, vx, vy, speed, onPaddle) {
+    var el = ballShape.cloneNode(true);
+    el.removeAttribute("id");
+    ballsRoot.appendChild(el);
+    var b = { x: x, y: y, vx: vx, vy: vy, speed: speed, onPaddle: onPaddle, el: el };
+    state.balls.push(b);
+    return b;
+  }
+
+  // 여의봉 위에 새 공 올려 두기 (발사 대기)
+  function serveBall() {
+    makeBall(state.paddleX, PADDLE.y - BALL_R - 2, 0, 0, Math.min(BALL.maxSpeed, stageSpeed() * state.speedMul), true);
+  }
+
+  // 모든 공을 조금 빠르게 (지금 날아가는 공 + 앞으로 나올 공)
+  function speedUpAll(f) {
+    state.speedMul *= f;
+    state.balls.forEach(function (b) {
+      if (b.onPaddle) b.speed = Math.min(BALL.maxSpeed, b.speed * f);
+      else setBallSpeed(b, b.speed * f);
+    });
+  }
+
+  function removeBall(b) {
+    b.el.remove();
+    var i = state.balls.indexOf(b);
+    if (i >= 0) state.balls.splice(i, 1);
+  }
+
+  function clearBalls() {
+    state.balls.slice().forEach(removeBall);
+  }
+
+  function drawBalls() {
+    state.balls.forEach(function (b) {
+      if (b.onPaddle) {
+        b.x = state.paddleX;
+        b.y = PADDLE.y - BALL_R - 2;
+      }
+      b.el.setAttribute("transform", "translate(" + b.x + " " + b.y + ")");
+    });
+  }
+
+  // ── 발사: 여의봉 위의 공을 대각선 위로 ──
+  function launch() {
+    sfx.unlock();   // 브라우저는 사용자가 누른 뒤에만 소리를 허락한다
+    if (state.over) return;
+    var b = state.balls.filter(function (x) { return x.onPaddle; })[0];
+    if (!b) return;
+    // 움직이는 쪽으로, 가만히 있으면 왼쪽/오른쪽 중 아무 쪽으로
+    var dir = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+    if (dir === 0) dir = Math.random() < 0.5 ? -1 : 1;
+    var rad = BALL.angle * Math.PI / 180;
+    b.vx = dir * Math.sin(rad) * b.speed;
+    b.vy = -Math.cos(rad) * b.speed;
+    b.onPaddle = false;
+    state.started = true;
+    sfx.launch();
+    sfx.startMusic();
+  }
+
+  // 공의 방향은 그대로 두고 빠르기만 바꾼다
+  function setBallSpeed(b, s) {
+    var now = Math.hypot(b.vx, b.vy) || 1;
+    b.speed = Math.min(BALL.maxSpeed, s);
+    b.vx = b.vx / now * b.speed;
+    b.vy = b.vy / now * b.speed;
+  }
+
+  // 공(원)과 보석(사각형)이 겹치면 튕기고 숫자를 깎는다. 한 번에 하나만.
+  function hitBricks(b) {
+    for (var row = 0; row < state.bricks.length; row++) {
+      for (var col = 0; col < state.bricks[row].length; col++) {
+        var k = state.bricks[row][col];
+        if (!k.alive) continue;
+        // 보석 위에서 공 중심과 가장 가까운 점
+        var nx = Math.max(k.x, Math.min(b.x, k.x + k.w));
+        var ny = Math.max(k.y, Math.min(b.y, k.y + k.h));
+        var dx = b.x - nx, dy = b.y - ny;
+        if (dx * dx + dy * dy > BALL_R * BALL_R) continue;
+
+        // 옆면에 맞았나, 위/아래 면에 맞았나: 더 적게 파고든 쪽으로 밀어내고 그 방향을 뒤집는다
+        var overlapX = Math.min(b.x + BALL_R - k.x, k.x + k.w - (b.x - BALL_R));
+        var overlapY = Math.min(b.y + BALL_R - k.y, k.y + k.h - (b.y - BALL_R));
+        if (overlapX < overlapY) {
+          b.vx = b.x < k.x + k.w / 2 ? -Math.abs(b.vx) : Math.abs(b.vx);
+          b.x += b.vx > 0 ? overlapX : -overlapX;
+        } else {
+          b.vy = b.y < k.y + k.h / 2 ? -Math.abs(b.vy) : Math.abs(b.vy);
+          b.y += b.vy > 0 ? overlapY : -overlapY;
+        }
+
+        hitBrick(row, col, b);
+        return;
+      }
+    }
+  }
+
+  // 여의봉에 맞으면 튕긴다. 가운데에 맞으면 거의 위로, 끝에 맞을수록 옆으로 비스듬히.
+  function hitPaddle(b, prevY) {
+    if (b.vy <= 0) return;                                  // 내려올 때만
+    if (b.y + BALL_R < PADDLE.y) return;                    // 아직 여의봉 위
+    if (prevY + BALL_R > PADDLE.y + 4) return;              // 이미 여의봉보다 아래로 지나감
+    var half = state.paddleW / 2;
+    var offset = (b.x - state.paddleX) / (half + BALL_R);   // −1(왼쪽 끝) ~ 1(오른쪽 끝)
+    if (offset < -1 || offset > 1) return;                  // 여의봉을 비껴감
+
+    var rad = offset * PADDLE.bounceAngle * Math.PI / 180;
+    b.vx = Math.sin(rad) * b.speed;
+    b.vy = -Math.cos(rad) * b.speed;
+    b.y = PADDLE.y - BALL_R;
+    sfx.bounce();
+  }
+
+  // 공 움직이기: 빠를 때 보석을 뚫고 지나가지 않게 잘게 나눠서 움직인다
+  function updateBalls(dt) {
+    state.balls.slice().forEach(function (b) {
+      if (b.onPaddle || state.over) return;
+      var steps = Math.max(1, Math.ceil(b.speed * dt / 4));
+      var sdt = dt / steps;
+      for (var i = 0; i < steps; i++) {
+        b.x += b.vx * sdt;
+        b.y += b.vy * sdt;
+
+        // 왼쪽·오른쪽·위쪽 벽: 들어간 만큼 되돌리고 방향을 뒤집는다
+        if (b.x - BALL_R < 0) { b.x = BALL_R; b.vx = Math.abs(b.vx); sfx.wall(); }
+        else if (b.x + BALL_R > LAYOUT.width) { b.x = LAYOUT.width - BALL_R; b.vx = -Math.abs(b.vx); sfx.wall(); }
+        if (b.y - BALL_R < 0) { b.y = BALL_R; b.vy = Math.abs(b.vy); sfx.wall(); }
+
+        hitBricks(b);
+        if (state.over) return;              // 방금 마지막 보석을 깸
+        hitPaddle(b, b.y - b.vy * sdt);
+
+        // 바닥: 이 공은 빠져서 사라진다
+        if (b.y - BALL_R > LAYOUT.bottom) {
+          removeBall(b);
+          return;
+        }
+      }
+    });
+
+    // 공이 하나도 안 남았을 때만 목숨 −1 (2개 중 1개만 빠지면 괜찮다)
+    if (!state.over && !state.respawning && state.balls.length === 0) ballLost();
+  }
+
+  function ballLost() {
+    loseLife();
+    if (state.lives > 0) {
+      sfx.lose();
+      state.respawning = true;
+      respawnTimer = setTimeout(function () {
+        state.respawning = false;
+        if (!state.over) serveBall();
+      }, BALL.respawnMs);
+    } else {
+      endGame("lives");
+    }
+  }
+
+  // ── 점수·목숨·시간 ──
+  var scoreEl = document.getElementById("score");
+  var livesEl = document.getElementById("lives");
+  var timeEl = document.getElementById("time");
+  var stageEl = document.getElementById("stage");
+
+  function paintScore() {
+    scoreEl.textContent = String(state.score).padStart(6, "0");
+  }
+
+  function paintLives() {
+    livesEl.textContent = "❤️".repeat(Math.max(0, state.lives));
+    livesEl.setAttribute("aria-label", "목숨 " + Math.max(0, state.lives) + "개");
+  }
+
+  function clock(sec) {
+    sec = Math.max(0, Math.ceil(sec));
+    return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
+  }
+
+  function timeLimit() { return RULES.timeLimit + state.timeBonus; }
+
+  function paintTime() {
+    var left = timeLimit() - state.elapsed;
+    timeEl.textContent = clock(left);
+    timeEl.classList.toggle("warn", left <= 30);
+  }
+
+  // 공을 다 놓쳤을 때: 목숨 −1, 여의봉 짧아짐
+  function loseLife() {
+    if (state.lives <= 0) return;
+    state.lives -= 1;
+    paintLives();
+    setPaddleLength(state.targetW - PADDLE.shrink);
+  }
+
+  // 보석이 공에 한 번 맞을 때마다 숫자 −1, 0이 되면 깨진다
+  function hitBrick(row, col, b) {
+    var k = state.bricks[row] && state.bricks[row][col];
+    if (!k || !k.alive) return;
+    k.hp -= damageFor(k.gi);   // 콤보 중인 색이면 2씩
+    if (k.hp > 0) {
+      sfx.ting(k.gi, k.hp);
+      k.label.textContent = k.hp;
+      if (k.hp <= damageFor(k.gi)) shakeAround(row, col);   // 깨지기 직전 (한 번만 더 맞으면 깨짐)
+      return;
+    }
+    sfx.shatter(k.gi);
+    breakBrick(row, col);
+    countStreak(k);
+    if (!bricksLeft()) { endGame("clear"); return; }
+    dropSomething(row, col, b);
+  }
+
+  // ── 콤보 · 어드밴티지: 같은 색 보석을 연속으로 깨기 ──
+  function isCombo(gi) { return state.streak.gi === gi && state.streak.count >= RULES.comboAt; }
+  function hasAdvantage() { return state.streak.count >= RULES.advantageAt; }
+  function damageFor(gi) { return isCombo(gi) ? RULES.comboDamage : 1; }
+
+  // 깬 보석이 앞의 것과 같은 색이면 이어지고, 다른 색이면 1부터 다시
+  function countStreak(k) {
+    var s = state.streak;
+    if (s.gi === k.gi) s.count += 1;
+    else { s.gi = k.gi; s.count = 1; }
+
+    var cx = k.x + k.w / 2, cy = k.y + k.h / 2;
+    var name = GEMS[k.gi].name;
+    if (s.count === RULES.comboAt) {
+      floatText(LAYOUT.width / 2, 300, "🔥 " + name + " 콤보! 2배로 깎여요", "banner");
+      sfx.combo();
+    } else if (s.count === RULES.advantageAt) {
+      floatText(LAYOUT.width / 2, 300, "✨ 어드밴티지! 아이템 UP", "banner");
+      sfx.combo();
+    } else if (s.count >= 2) {
+      floatText(cx, cy - 14, name + " ×" + s.count);
+    }
+    paintCombo();
+  }
+
+  var comboText = document.getElementById("comboText");
+  function paintCombo() {
+    var s = state.streak;
+    if (s.count < 2) { comboText.textContent = ""; return; }
+    var t = GEMS[s.gi].name + " 연속 " + s.count;
+    if (isCombo(s.gi)) t += " · 🔥 콤보 2배";
+    else t += " · " + (RULES.comboAt - s.count) + "개 더 깨면 콤보";
+    if (hasAdvantage()) t += " · ✨ 아이템 UP";
+    comboText.textContent = t;
+    comboText.style.fill = GEMS[s.gi].top;
+  }
+
+  // 보석 하나를 깼을 때: +10점, 8개마다 공 +0.3%, 그 줄이 전부 깨졌으면 여의봉 길어짐 + 공 +3%씩 누적
+  function breakBrick(row, col) {
+    var k = state.bricks[row] && state.bricks[row][col];
+    if (!k || !k.alive) return;
+    k.alive = false;
+    k.el.remove();
+    state.score += RULES.scorePerGem;
+    paintScore();
+
+    state.broken += 1;
+    if (state.broken % RULES.speedUpEvery === 0) speedUpAll(RULES.speedUpGems);
+
+    var rowCleared = state.bricks[row].every(function (x) { return !x.alive; });
+    if (rowCleared) {
+      setPaddleLength(state.targetW + PADDLE.grow);
+      // 줄 보너스 배율을 (1 + 3% × (n−1)) → (1 + 3% × n)으로 올린다
+      var n = ++state.rowsCleared;
+      speedUpAll((1 + RULES.speedUpRow * n) / (1 + RULES.speedUpRow * (n - 1)));
+      var k0 = state.bricks[row][0];
+      floatText(LAYOUT.width / 2, k0.y + k0.h / 2, "⚡ 가로줄 " + n + "개 · 공 속도 +" + Math.round(RULES.speedUpRow * n * 100) + "%");
+      if (n % MISSILE.everyRows === 0) earnMissile(n);
+    }
+  }
+
+  // ── 보석을 깨면: 가끔 폭탄·다이나마이트가 터지거나, 독버섯이 떨어지거나, 좋은 아이템 ──
+  function dropSomething(row, col, b) {
+    var k = state.bricks[row][col];
+    var cx = k.x + k.w / 2, cy = k.y + k.h / 2;
+    var roll = Math.random();
+    var p = RULES.bombChance;
+    if (roll < p) { explode(row, col, "bomb"); return; }
+    p += RULES.dynamiteChance;
+    if (roll < p) { explode(row, col, "dynamite"); return; }
+    p += RULES.mushroomChance;
+    if (roll < p) { dropMushroom(cx, cy); return; }
+    var itemChance = RULES.itemChance * (hasAdvantage() ? RULES.advantageItemMul : 1);
+    if (roll < p + itemChance) giveItem(cx, cy, b);
+  }
+
+  // ── 폭발: 깬 보석 자리를 기준으로 주변 보석을 숫자와 상관없이 한 번에 깬다 ──
+  //   bomb(💣): 같은 가로줄 전부 + 같은 세로줄 전부 / dynamite(🧨): 둘레 8칸 (상하좌우 + 대각선)
+  function explode(row, col, kind) {
+    var k0 = state.bricks[row][col];
+    var targets = [];
+    state.bricks.forEach(function (r, ri) {
+      r.forEach(function (k, ci) {
+        if (!k.alive) return;
+        var hit = kind === "bomb"
+          ? ri === row || ci === col
+          : Math.abs(ri - row) <= 1 && Math.abs(ci - col) <= 1;
+        if (hit) targets.push([ri, ci]);
+      });
+    });
+
+    sfx.boom();
+    blast(k0.x + k0.w / 2, k0.y + k0.h / 2, kind === "bomb" ? 44 : 56);
+    targets.forEach(function (t) {
+      var k = state.bricks[t[0]][t[1]];
+      blast(k.x + k.w / 2, k.y + k.h / 2, 24);
+      breakBrick(t[0], t[1]);
+    });
+    var name = kind === "bomb" ? "💣 폭탄! 십자 폭발" : "🧨 다이나마이트!";
+    floatText(LAYOUT.width / 2, 300, name + " 보석 " + targets.length + "개", "banner");
+    if (!bricksLeft()) endGame("clear");
+  }
+
+  function blast(x, y, r) {
+    var c = document.createElementNS(SVG_NS, "circle");
+    c.setAttribute("class", "blast");
+    c.setAttribute("cx", x);
+    c.setAttribute("cy", y);
+    c.setAttribute("r", r);
+    c.setAttribute("fill", "#FFD34D");
+    c.setAttribute("fill-opacity", "0.75");
+    c.setAttribute("stroke", "#FF5FA2");
+    c.setAttribute("stroke-width", "3");
+    effectsRoot.appendChild(c);
+    setTimeout(function () { c.remove(); }, 500);
+  }
+
+  // ── 궁극기 미사일 ──
+  var missilesRoot = document.getElementById("missiles");
+  var missileShape = document.getElementById("missileShape");
+  var missileBtn = document.getElementById("missileBtn");
+  var missileCountEl = document.getElementById("missileCount");
+  var missileTimers = [];
+
+  function paintMissile() {
+    missileCountEl.textContent = state.missilesLeft;
+    missileBtn.disabled = state.missilesLeft <= 0 || state.over;
+    // 쓸 수 있을 때만 버튼이 보인다 (자리는 비워 둬서 화면이 들썩이지 않게)
+    missileBtn.style.visibility = state.missilesLeft > 0 && !state.over ? "visible" : "hidden";
+  }
+
+  // 가로줄 3·6·9…줄째를 깼을 때: 미사일 1번 생김
+  function earnMissile(rows) {
+    state.missilesLeft += 1;
+    paintMissile();
+    floatText(LAYOUT.width / 2, 340, "🚀 가로줄 " + rows + "줄! 궁극기 미사일 준비", "banner");
+    sfx.item();
+    if (missileBtn.animate && !reduceMotion) {
+      missileBtn.animate(
+        [{ transform: "scale(0.6)" }, { transform: "scale(1.15)" }, { transform: "scale(1)" }],
+        { duration: 420, easing: "ease-out" }
+      );
+    }
+  }
+
+  // 아직 남은 보석 중 하나를 무작위로
+  function randomTarget() {
+    var alive = [];
+    state.bricks.forEach(function (r) { r.forEach(function (k) { if (k.alive) alive.push(k); }); });
+    return alive.length ? alive[Math.floor(Math.random() * alive.length)] : null;
+  }
+
+  function fireMissiles() {
+    sfx.unlock();
+    if (state.over || state.missilesLeft <= 0) return;
+    state.missilesLeft -= 1;
+    paintMissile();
+    sfx.missile();
+    floatText(LAYOUT.width / 2, 300, "🚀 궁극기 미사일 발사!", "banner");
+    for (var i = 0; i < MISSILE.count; i++) {
+      missileTimers.push(setTimeout(spawnMissile, i * MISSILE.gapMs));
+    }
+  }
+
+  // 여의봉 위 아무 곳에서 위쪽(좌우로 조금씩 흩어지게)으로 한 발
+  function spawnMissile() {
+    if (state.over) return;
+    var target = randomTarget();
+    if (!target) return;
+    var el = missileShape.cloneNode(true);
+    el.removeAttribute("id");
+    missilesRoot.appendChild(el);
+    var rad = (-90 + (Math.random() * 70 - 35)) * Math.PI / 180;
+    state.missiles.push({
+      x: state.paddleX + (Math.random() - 0.5) * state.paddleW,
+      y: PADDLE.y - 4,
+      vx: Math.cos(rad) * MISSILE.speed,
+      vy: Math.sin(rad) * MISSILE.speed,
+      target: target,
+      el: el
+    });
+  }
+
+  function removeMissile(m) {
+    m.el.remove();
+    var i = state.missiles.indexOf(m);
+    if (i >= 0) state.missiles.splice(i, 1);
+  }
+
+  function clearMissiles() {
+    missileTimers.forEach(clearTimeout);
+    missileTimers = [];
+    state.missiles.slice().forEach(removeMissile);
+  }
+
+  // 유도 미사일: 목표 보석 쪽으로 방향을 조금씩 틀며 날아간다. 목표가 먼저 깨지면 다른 보석으로.
+  function updateMissiles(dt) {
+    state.missiles.slice().forEach(function (m) {
+      if (!m.target.alive) {
+        m.target = randomTarget();
+        if (!m.target) { removeMissile(m); return; }
+      }
+      var t = m.target;
+      var dx = t.x + t.w / 2 - m.x, dy = t.y + t.h / 2 - m.y;
+      var d = Math.hypot(dx, dy) || 1;
+      var turn = Math.min(1, dt * 8);
+      m.vx += (dx / d * MISSILE.speed - m.vx) * turn;
+      m.vy += (dy / d * MISSILE.speed - m.vy) * turn;
+      var s = Math.hypot(m.vx, m.vy) || 1;
+      m.vx = m.vx / s * MISSILE.speed;
+      m.vy = m.vy / s * MISSILE.speed;
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      var deg = Math.atan2(m.vy, m.vx) * 180 / Math.PI;
+      m.el.setAttribute("transform", "translate(" + m.x + " " + m.y + ") rotate(" + deg + ")");
+
+      var r = MISSILE.hitR;
+      if (m.x >= t.x - r && m.x <= t.x + t.w + r && m.y >= t.y - r && m.y <= t.y + t.h + r) {
+        removeMissile(m);
+        missileHit(t);
+      }
+    });
+  }
+
+  // 미사일 한 발 = 보석 숫자 −5, 0 이하가 되면 깨진다
+  function missileHit(k) {
+    if (state.over || !k.alive) return;
+    var row = -1, col = -1;
+    state.bricks.some(function (r, ri) {
+      var ci = r.indexOf(k);
+      if (ci >= 0) { row = ri; col = ci; return true; }
+      return false;
+    });
+    if (row < 0) return;
+    blast(k.x + k.w / 2, k.y + k.h / 2, 16);
+    k.hp -= MISSILE.damage;
+    if (k.hp > 0) {
+      sfx.ting(k.gi, k.hp);
+      k.label.textContent = k.hp;
+      shakeAround(row, col);
+      return;
+    }
+    sfx.shatter(k.gi);
+    breakBrick(row, col);
+    if (!bricksLeft()) endGame("clear");
+  }
+
+  missileBtn.addEventListener("click", function () {
+    missileBtn.blur();   // 버튼에 초점이 남으면 Space가 공 발사 대신 버튼을 누르게 된다
+    fireMissiles();
+  });
+
+  // ── 소리 켜기/끄기 ──
+  var soundBtn = document.getElementById("soundBtn");
+  function paintSound() {
+    var m = sfx.isMuted();
+    soundBtn.textContent = m ? "🔇 소리 꺼짐" : "🔊 소리 켜짐";
+    soundBtn.setAttribute("aria-pressed", m ? "false" : "true");
+  }
+  function toggleSound() {
+    sfx.setMuted(!sfx.isMuted());
+    paintSound();
+  }
+  soundBtn.addEventListener("click", function () {
+    soundBtn.blur();
+    toggleSound();
+  });
+  paintSound();
+
+  // 받을 수 있는 아이템 중에서 weight 비율대로 하나 고른다
+  function pickItem(b) {
+    var pool = ITEMS.filter(function (it) {
+      if (it.id === "life") return state.lives < RULES.maxLives;
+      if (it.balls) return b && state.balls.length < RULES.maxBalls;
+      return true;
+    });
+    var total = pool.reduce(function (s, it) { return s + it.weight; }, 0);
+    var r = Math.random() * total;
+    for (var i = 0; i < pool.length; i++) {
+      r -= pool[i].weight;
+      if (r < 0) return pool[i];
+    }
+    return pool[pool.length - 1];
+  }
+
+  function giveItem(cx, cy, b) {
+    var it = pickItem(b);
+    if (it.id === "life") {
+      state.lives += 1;
+      paintLives();
+    } else if (it.balls) {
+      // 깬 공 자리에서 위쪽 부채꼴로 갈라져 나가는 새 공들 (최대 개수를 넘지 않게)
+      var n = Math.min(it.balls, RULES.maxBalls - state.balls.length);
+      for (var i = 0; i < n; i++) {
+        var deg = -60 + 120 * (i + 0.5) / n + (Math.random() * 16 - 8);
+        var rad = deg * Math.PI / 180;
+        makeBall(b.x, b.y, Math.sin(rad) * b.speed, -Math.cos(rad) * b.speed, b.speed, false);
+      }
+    } else if (it.grow) {
+      setPaddleLength(state.targetW * (1 + it.grow));
+    } else if (it.buff) {
+      // 잠깐 늘어나는 여의봉: 새로 먹으면 앞의 것을 바꾼다
+      state.buff = { mul: it.buff, left: it.secs, secs: it.secs };
+      paintBuff();
+    } else if (it.time) {
+      state.timeBonus += it.time;
+      paintTime();
+    }
+    floatText(cx, cy, it.text);
+    sfx.item();
+  }
+
+  // ── 독버섯 ──
+  var mushroomsRoot = document.getElementById("mushrooms");
+  var mushroomShape = document.getElementById("mushroomShape");
+
+  function dropMushroom(x, y) {
+    var el = mushroomShape.cloneNode(true);
+    el.removeAttribute("id");
+    mushroomsRoot.appendChild(el);
+    state.mushrooms.push({ x: x, y: y, el: el });
+    sfx.mushroom();
+  }
+
+  function removeMushroom(m) {
+    m.el.remove();
+    var i = state.mushrooms.indexOf(m);
+    if (i >= 0) state.mushrooms.splice(i, 1);
+  }
+
+  function clearMushrooms() {
+    state.mushrooms.slice().forEach(removeMushroom);
+  }
+
+  function updateMushrooms(dt) {
+    var half = state.paddleW / 2;
+    state.mushrooms.slice().forEach(function (m) {
+      m.y += MUSHROOM.speed * dt;
+      m.el.setAttribute("transform", "translate(" + m.x + " " + m.y + ")");
+      // 여의봉(사각형)과 독버섯(원)이 닿았나
+      var nx = Math.max(state.paddleX - half, Math.min(m.x, state.paddleX + half));
+      var ny = Math.max(PADDLE.y, Math.min(m.y, PADDLE.y + 14));
+      var dx = m.x - nx, dy = m.y - ny;
+      if (dx * dx + dy * dy <= MUSHROOM.r * MUSHROOM.r) {
+        removeMushroom(m);
+        mushroomHit(m.x);
+      } else if (m.y - MUSHROOM.r > LAYOUT.bottom) {
+        removeMushroom(m);   // 피했다!
+      }
+    });
+  }
+
+  function mushroomHit(x) {
+    if (state.over) return;
+    sfx.lose();
+    floatText(x, PADDLE.y - 22, "🍄 독버섯! 목숨 −1");
+    if (paddle.animate && !reduceMotion) {
+      paddle.animate(
+        [{ opacity: 1 }, { opacity: 0.3 }, { opacity: 1 }, { opacity: 0.3 }, { opacity: 1 }],
+        { duration: 500 }
+      );
+    }
+    loseLife();
+    if (state.lives <= 0) endGame("lives");
+  }
+
+  function floatText(x, y, text, extra) {
+    var t = document.createElementNS(SVG_NS, "text");
+    t.setAttribute("class", "pop" + (extra ? " " + extra : ""));
+    t.setAttribute("x", x);
+    t.setAttribute("y", y);
+    t.textContent = text;
+    effectsRoot.appendChild(t);
+    setTimeout(function () { t.remove(); }, extra === "banner" ? 1900 : 1000);
+  }
+
+  // ── 결과 화면 ──
+  var resultEl = document.getElementById("result");
+  var resultKicker = document.getElementById("resultKicker");
+  var resultTitle = document.getElementById("resultTitle");
+  var resultNote = document.getElementById("resultNote");
+  var resultTimeLine = document.getElementById("resultTimeLine");
+  var clearTimeEl = document.getElementById("clearTime");
+  var scoreLabel = document.getElementById("scoreLabel");
+  var finalScoreEl = document.getElementById("finalScore");
+  var againBtn = document.getElementById("againBtn");
+  var resultKind = "lives";
+
+  // kind: "lives"(목숨 0) · "time"(5분 초과) · "clear"(보석 전부 깸)
+  function endGame(kind) {
+    if (state.over) return;
+    state.over = true;
+    clearTimeout(respawnTimer);
+    state.respawning = false;
+    state.buff = null;
+    paintBuff();
+    clearBalls();
+    clearMushrooms();
+    clearMissiles();
+    paintMissile();
+    sfx.stopMusic();
+    if (kind === "clear") sfx.clear(); else sfx.over();
+    resultTimer = setTimeout(function () { showResult(kind); }, kind === "clear" ? 700 : 400);
+  }
+
+  function showResult(kind) {
+    resultKind = kind;
+    var clear = kind === "clear";
+    resultKicker.textContent = clear ? "STAGE " + state.stage + " CLEAR" : (kind === "time" ? "TIME OVER" : "GAME OVER");
+    resultTitle.innerHTML = clear ? '클리어! <span class="emoji">🎉</span>' : (kind === "time" ? "시간 초과!" : "게임 오버");
+    resultNote.hidden = kind !== "time";
+    resultNote.textContent = "제한 시간 안에 보석을 다 깨지 못했어요";
+    resultTimeLine.hidden = !clear;
+    var sec = Math.floor(state.elapsed);
+    clearTimeEl.textContent = Math.floor(sec / 60) + "분 " + (sec % 60) + "초";
+    scoreLabel.textContent = clear ? "점수" : "최종 점수";
+    finalScoreEl.textContent = state.score;
+    againBtn.textContent = clear ? "다음 단계로 넘어가기" : "다시 하기";
+    resultEl.hidden = false;
+    againBtn.focus();
+  }
+
+  // 단계 시작: 보석·시간·여의봉·공을 새로 (점수·목숨은 그대로)
+  function startStage() {
+    clearTimeout(respawnTimer);
+    clearTimeout(resultTimer);
+    resultEl.hidden = true;
+    state.over = false;
+    state.started = false;
+    state.respawning = false;
+    state.elapsed = 0;
+    state.timeBonus = 0;
+    state.broken = 0;
+    state.rowsCleared = 0;
+    state.speedMul = 1;
+    state.buff = null;
+    state.streak = { gi: -1, count: 0 };
+    state.nextRowAt = RULES.newRowEvery;
+    state.paddleX = LAYOUT.width / 2;
+    state.paddleW = state.targetW = PADDLE.start;
+    effectsRoot.textContent = "";
+    paintBuff();
+    paintCombo();
+    clearBalls();
+    clearMushrooms();
+    clearMissiles();
+    state.missilesLeft = 0;
+    paintMissile();
+    drawBricks();
+    serveBall();
+    stageEl.textContent = state.stage;
+    paintScore();
+    paintLives();
+    paintTime();
+  }
+
+  // 처음부터 다시
+  function restart() {
+    state.stage = 1;
+    state.score = 0;
+    state.lives = START_LIVES;
+    startStage();
+  }
+
+  // 다음 단계: 점수·목숨은 이어 가고 공이 조금 더 빨라진다
+  function nextStage() {
+    state.stage += 1;
+    startStage();
+  }
+
+  againBtn.addEventListener("click", function () {
+    if (resultKind === "clear") nextStage(); else restart();
+  });
+
+  // ── 방향키 ──
+  function onKey(e, down) {
+    if (e.key === "ArrowLeft") keys.left = down;
+    else if (e.key === "ArrowRight") keys.right = down;
+    else return;
+    e.preventDefault();   // 화면이 옆으로 스크롤되지 않게
+  }
+  window.addEventListener("keydown", function (e) {
+    if (e.target.closest && e.target.closest("button")) return;   // 결과 화면 버튼은 Space·Enter로 눌리게 둔다
+    if (e.code === "Space" || e.key === " ") {
+      e.preventDefault();          // 화면이 아래로 스크롤되지 않게
+      if (!e.repeat) launch();
+      return;
+    }
+    if (e.code === "KeyM") {           // 한글 입력 상태여도 같은 자리 키로 동작
+      if (!e.repeat) fireMissiles();
+      return;
+    }
+    if (e.code === "KeyS") {
+      if (!e.repeat) toggleSound();
+      return;
+    }
+    onKey(e, true);
+  });
+  window.addEventListener("keyup", function (e) { onKey(e, false); });
+  // 다른 창으로 가면 키를 뗀 것으로 본다 (계속 미끄러지는 문제 방지)
+  window.addEventListener("blur", function () { keys.left = keys.right = false; });
+
+  // 마우스 왼쪽(0)·오른쪽(2) 버튼으로도 발사
+  window.addEventListener("mousedown", function (e) {
+    if (e.target.closest && e.target.closest("button")) return;
+    if (e.button === 0 || e.button === 2) launch();
+  });
+  // 오른쪽 클릭 메뉴가 뜨지 않게 (오락기 안에서만)
+  document.querySelector(".cabinet").addEventListener("contextmenu", function (e) { e.preventDefault(); });
+
+  // ── 마우스 이동: 마우스가 있는 가로 위치로 여의봉이 따라간다 ──
+  window.addEventListener("mousemove", function (e) {
+    if (!resultEl.hidden) return;
+    var rect = field.getBoundingClientRect();
+    if (!rect.width) return;
+    state.paddleX = (e.clientX - rect.left) / rect.width * LAYOUT.width;
+    clampPaddle();
+  });
+
+  // ── 매 프레임 ──
+  var last = 0;
+  function frame(now) {
+    // 초 단위, 너무 큰 건 자름 (다른 탭에 갔다 오면 그동안 시간이 흐르지 않는다)
+    var dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+    last = now;
+
+    var dir = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+    state.paddleX += dir * PADDLE.speed * dt;
+
+    // 잠깐 늘어난 여의봉: 시간이 다 되면 원래대로
+    if (state.buff && state.started && !state.over) {
+      state.buff.left -= dt;
+      if (state.buff.left <= 0) state.buff = null;
+      paintBuff();
+    }
+
+    // 길이는 목표를 향해 부드럽게 (약 0.2초)
+    var goal = effectiveWidth();
+    var diff = goal - state.paddleW;
+    state.paddleW = Math.abs(diff) < 0.05 ? goal : state.paddleW + diff * Math.min(1, dt * 12);
+
+    clampPaddle();
+    drawPaddle();
+
+    // 시간: 첫 발사 뒤부터 흐르고, 1분마다 새 줄, 제한 시간이 되면 시간 초과
+    if (state.started && !state.over) {
+      state.elapsed += dt;
+      if (state.elapsed >= state.nextRowAt) {
+        state.nextRowAt += RULES.newRowEvery;
+        addRow();
+      }
+      if (state.elapsed >= timeLimit()) {
+        state.elapsed = timeLimit();
+        endGame("time");
+      }
+      paintTime();
+    }
+
+    if (!state.over) {
+      updateMushrooms(dt);
+      updateMissiles(dt);
+    }
+    updateBalls(dt);
+    drawBalls();
+    requestAnimationFrame(frame);
+  }
+
+  restart();
+  drawPaddle();
+  requestAnimationFrame(frame);
+
+  // 시험용 (브라우저 콘솔): BrickGame.addRow(), BrickGame.explode(2, 3, "bomb"), BrickGame.dropMushroom(240, 100) 등
+  window.BrickGame = { loseLife: loseLife, hitBrick: hitBrick, breakBrick: breakBrick, addRow: addRow, endGame: endGame, explode: explode, dropMushroom: dropMushroom, fireMissiles: fireMissiles, state: state };
+})();
+</script>
+</body>
+</html>

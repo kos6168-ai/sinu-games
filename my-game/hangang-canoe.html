@@ -1,0 +1,1780 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#8fd3ff">
+<title>한강 카누</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>
+  /* 선명한 파스텔 동화 팔레트: 진한 자두색 외곽선 + 밝은 파스텔 면 */
+  :root {
+    --ink: #3b3363;
+    --ink-soft: #5d5488;
+    --sky: #8fd3ff;
+    --river: #3aa8e6;
+    --pink: #ff8fb8;
+    --pink-lip: #d9578a;
+    --coral: #ff6b81;
+    --butter: #ffe066;
+    --mint: #7ee0c3;
+    --white: #ffffff;
+    --panel: #fffaf3;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --font: "Jua", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  }
+  html, body { margin: 0; height: 100%; background: var(--sky); overflow: hidden;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    font-family: var(--font); color: var(--ink); -webkit-tap-highlight-color: transparent; }
+  ::selection { background: var(--butter); color: var(--ink); }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  button { font-family: inherit; color: inherit; cursor: pointer; }
+  button:focus-visible { outline: 4px solid var(--butter); outline-offset: 3px; }
+
+  /* ---------- 공통 버튼: 캐주얼 게임식 두꺼운 외곽선 + 아래 받침 ---------- */
+  .pill {
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    min-height: 64px; padding: 0 36px; border-radius: 999px;
+    border: 3px solid var(--ink); background: var(--pink); color: var(--ink);
+    font-size: 28px; letter-spacing: 0.02em;
+    box-shadow: 0 6px 0 var(--pink-lip), 0 10px 18px rgba(59, 51, 99, 0.25);
+    transition: transform 0.12s var(--ease-out), box-shadow 0.12s var(--ease-out), filter 0.2s;
+  }
+  .pill:hover { filter: brightness(1.06); }
+  .pill:active { transform: translateY(5px); box-shadow: 0 1px 0 var(--pink-lip), 0 4px 8px rgba(59, 51, 99, 0.25); }
+  .pill[disabled] { filter: saturate(0.4) brightness(0.95); cursor: default; }
+  .pill.secondary { background: var(--white); box-shadow: 0 6px 0 #c8bde8, 0 10px 18px rgba(59, 51, 99, 0.2); min-height: 56px; font-size: 22px; }
+  .pill.secondary:active { box-shadow: 0 1px 0 #c8bde8; }
+
+  .toggle {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px;
+    border-radius: 999px; border: 3px solid var(--ink); background: var(--white);
+    font-size: 17px; box-shadow: 0 4px 0 #c8bde8;
+    transition: transform 0.12s var(--ease-out), box-shadow 0.12s var(--ease-out);
+  }
+  .toggle:active { transform: translateY(3px); box-shadow: 0 1px 0 #c8bde8; }
+  .toggle svg { width: 22px; height: 22px; }
+  .toggle[aria-pressed="false"] { background: #ece6f7; color: var(--ink-soft); }
+  .toggle[aria-pressed="false"] .on-only { display: none; }
+  .toggle[aria-pressed="true"] .off-only { display: none; }
+  .toggle[aria-disabled="true"] { opacity: 0.6; cursor: default; }
+
+  /* ------------------------------- 화면 ------------------------------- */
+  .screen {
+    position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+    box-sizing: border-box; text-align: center;
+    opacity: 0; visibility: hidden; transition: opacity 0.3s var(--ease-out), visibility 0.3s;
+  }
+  .screen.show { opacity: 1; visibility: visible; }
+
+  #title { justify-content: space-between; }
+  .title-top { margin-top: 9vh; }
+  .logo { margin: 0; font-size: clamp(56px, 16vw, 96px); line-height: 1; font-weight: 400;
+    color: var(--ink); paint-order: stroke fill; -webkit-text-stroke: 12px var(--white);
+    text-shadow: 0 6px 0 rgba(59, 51, 99, 0.28);
+    letter-spacing: -0.01em; transform: rotate(-3deg); }
+  .logo span { display: block; color: var(--ink); -webkit-text-stroke: 10px var(--butter); font-size: 0.62em; margin-top: 4px; }
+  .tagline { margin: 22px auto 0; display: inline-block; padding: 8px 18px; border-radius: 999px;
+    background: var(--ink); color: var(--white); font-size: 18px; }
+  .best-line { margin-top: 12px; font-size: 18px; color: var(--ink); }
+  .title-bottom { display: flex; flex-direction: column; align-items: center; gap: 18px; width: 100%; max-width: 420px; }
+  .hints { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .hint { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 14px;
+    background: rgba(255, 255, 255, 0.92); border: 2px solid var(--ink); font-size: 15px; }
+  .hint svg { width: 22px; height: 22px; flex: none; }
+  .toggles { display: flex; gap: 10px; justify-content: center; }
+  #startBtn { width: 100%; max-width: 320px; }
+
+  /* 아기 공룡 옷을 입은 주인공 */
+  .hero-art { width: clamp(150px, 44vw, 240px); aspect-ratio: 1; animation: heroBob 2.4s ease-in-out infinite alternate; }
+  .hero-art svg, .portrait svg, .over-hero svg { display: block; width: 100%; height: 100%; }
+  @keyframes heroBob { from { transform: translateY(0) rotate(-2deg); } to { transform: translateY(-10px) rotate(2deg); } }
+  .vitals-row { display: flex; align-items: center; gap: 8px; }
+  .portrait { width: 56px; height: 56px; border-radius: 50%; border: 3px solid var(--ink); background: #fff1f7;
+    box-shadow: 0 3px 0 rgba(59, 51, 99, 0.35); overflow: hidden; flex: none; }
+  .over-hero { width: 128px; height: 128px; margin: -92px auto 2px; }
+
+  /* 패널 (일시정지, 게임 오버) */
+  .dim { background: rgba(59, 51, 99, 0.45); justify-content: center; }
+  .panel {
+    width: 100%; max-width: 380px; box-sizing: border-box; padding: 28px 22px 26px;
+    background: var(--panel); border: 3px solid var(--ink); border-radius: 28px;
+    box-shadow: 0 8px 0 #c8bde8, 0 18px 40px rgba(59, 51, 99, 0.35);
+    transform: translateY(24px) scale(0.96); transition: transform 0.45s var(--ease-out);
+  }
+  .screen.show .panel { transform: none; }
+  .panel h2 { margin: 0 0 6px; font-size: 40px; font-weight: 400; line-height: 1.1; }
+  .panel h2.record { color: var(--pink-lip); }
+  .panel .sub { margin: 0 0 18px; font-size: 17px; color: var(--ink-soft); }
+  .panel .actions { display: flex; flex-direction: column; gap: 14px; align-items: stretch; margin-top: 22px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0; }
+  .stats div { background: #f1ecff; border-radius: 16px; padding: 10px 4px 8px; }
+  .stats dt { font-size: 14px; color: var(--ink-soft); }
+  .stats dd { margin: 2px 0 0; font-size: 26px; font-variant-numeric: tabular-nums; }
+
+  /* 통과한 다리 지도 */
+  .route { margin-top: 18px; text-align: left; }
+  .route-label { font-size: 15px; color: var(--ink-soft); display: flex; justify-content: space-between; }
+  .route-track { position: relative; height: 22px; margin-top: 8px; }
+  .route-track::before { content: ""; position: absolute; left: 0; right: 0; top: 8px; height: 6px; border-radius: 3px; background: #e4dcfa; }
+  .route-fill { position: absolute; left: 0; top: 8px; height: 6px; border-radius: 3px; background: var(--river); transition: width 0.8s var(--ease-out); }
+  .route-dot { position: absolute; top: 4px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%;
+    background: var(--white); border: 2px solid #c8bde8; box-sizing: border-box; }
+  .route-dot.done { background: var(--river); border-color: var(--ink); }
+  .route-dot.last { background: var(--pink); border-color: var(--ink); width: 20px; height: 20px; margin-left: -10px; top: 1px; }
+  .route-ends { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+
+  /* ------------------------------- HUD ------------------------------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
+  #hud.show { opacity: 1; }
+  .hud-top { position: absolute; left: 0; right: 0; top: 0;
+    padding: max(12px, env(safe-area-inset-top)) 12px 0; display: grid;
+    grid-template-columns: 1fr auto; gap: 8px 10px; align-items: start; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.95); border: 3px solid var(--ink); border-radius: 999px;
+    box-shadow: 0 3px 0 rgba(59, 51, 99, 0.35); }
+  .vitals { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  .hearts { display: flex; gap: 4px; }
+  .hearts svg { width: 26px; height: 24px; transition: transform 0.25s var(--ease-out); }
+  .hearts svg.lost { transform: scale(0.85); }
+  .hearts svg.lost path { fill: #d9d2ea; }
+  .energy { gap: 8px; padding: 5px 10px 5px 8px; }
+  .energy svg { width: 22px; height: 22px; flex: none; }
+  .bar { position: relative; width: clamp(96px, 30vw, 180px); height: 14px; border-radius: 7px; background: #ece6f7; overflow: hidden; }
+  .bar i { position: absolute; inset: 0 auto 0 0; width: 100%; background: var(--butter); border-radius: 7px; transition: width 0.15s linear; }
+  .energy.low .bar i { background: var(--coral); }
+  .energy.low { animation: lowPulse 0.7s ease-in-out infinite alternate; }
+  @keyframes lowPulse { to { background: #ffe0e6; } }
+  .distance { font-size: 30px; line-height: 1; padding: 8px 16px; font-variant-numeric: tabular-nums; }
+  .distance small { font-size: 16px; margin-left: 2px; }
+  .right-col { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+  #pauseBtn { pointer-events: auto; width: 52px; height: 52px; border-radius: 50%; padding: 0;
+    border: 3px solid var(--ink); background: var(--white); box-shadow: 0 4px 0 #c8bde8;
+    display: grid; place-items: center; }
+  #pauseBtn:active { transform: translateY(3px); box-shadow: 0 1px 0 #c8bde8; }
+  #pauseBtn svg { width: 22px; height: 22px; }
+  .next-bridge { grid-column: 1 / -1; justify-self: center; font-size: 16px; padding: 5px 14px; }
+  .next-bridge b { font-weight: 400; color: #0b6aa8; }
+
+  /* 다리 통과 배너 */
+  #banner { position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%) scale(0.6);
+    opacity: 0; pointer-events: none; white-space: nowrap;
+    padding: 12px 26px; border-radius: 999px; border: 4px solid var(--ink);
+    background: var(--butter); font-size: clamp(26px, 8vw, 40px);
+    box-shadow: 0 6px 0 #e0b93a, 0 14px 30px rgba(59, 51, 99, 0.3); }
+  #banner.warn { background: var(--coral); box-shadow: 0 6px 0 #d9465d, 0 14px 30px rgba(59, 51, 99, 0.3); }
+  #banner.pop { animation: pop 1.8s var(--ease-out) forwards; }
+  @keyframes pop {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+    12% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+    22% { transform: translate(-50%, -50%) scale(1); }
+    80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -60%) scale(0.96); }
+  }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (min-width: 700px) and (min-height: 600px) {
+    .title-top { margin-top: 7vh; }
+  }
+  /* 가로로 눕힌 휴대폰: 한 화면에 들어가도록 줄인다 */
+  @media (max-height: 560px) {
+    .title-top { margin-top: 0; }
+    .logo { font-size: 44px; }
+    .logo span { display: inline; margin-left: 8px; font-size: 0.7em; }
+    .tagline { margin-top: 8px; font-size: 15px; padding: 5px 14px; }
+    .best-line { margin-top: 4px; font-size: 15px; }
+    .title-bottom { flex-direction: row; flex-wrap: wrap; justify-content: center; max-width: 760px; gap: 10px; }
+    .hints { width: 100%; }
+    .hint { font-size: 13px; padding: 4px 10px; }
+    .pill { min-height: 52px; font-size: 22px; }
+    .pill.secondary { min-height: 52px; font-size: 20px; }
+    #startBtn { width: auto; max-width: none; }
+    .hero-art, .over-hero { display: none; }
+    .panel { padding: 14px 18px; max-width: 520px; }
+    .panel h2 { font-size: 28px; }
+    .panel .sub { margin-bottom: 10px; }
+    .panel .actions { flex-direction: row; margin-top: 12px; }
+    .panel .actions .pill { flex: 1; }
+    .stats dd { font-size: 22px; }
+    .route { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .screen, .panel, .pill, .toggle, .route-fill { transition: none; }
+    .energy.low, .hero-art { animation: none; }
+    #banner.pop { animation: fade 1.8s linear forwards; }
+    @keyframes fade { 0%, 85% { opacity: 1; transform: translate(-50%, -50%); } 100% { opacity: 0; transform: translate(-50%, -50%); } }
+  }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="한강 카누 게임 화면"></canvas>
+
+<!-- 아이콘 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-heart" viewBox="0 0 26 24"><path d="M13 22.5 3.4 13.3A6.1 6.1 0 0 1 13 5.6a6.1 6.1 0 0 1 9.6 7.7Z" fill="#ff6b81" stroke="#3b3363" stroke-width="2.5" stroke-linejoin="round"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.5 2 4.5 13.5h6L9.5 22l10-12.5h-6.2Z" fill="#ffe066" stroke="#3b3363" stroke-width="2.2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1.5" fill="#3b3363"/><rect x="14" y="4" width="5" height="16" rx="1.5" fill="#3b3363"/></symbol>
+    <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4Z" fill="#3b3363"/><path class="on-only" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="#3b3363" stroke-width="2.2" stroke-linecap="round"/><path class="off-only" d="m16 9 5 6m0-6-5 6" stroke="#3b3363" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-vibe" viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2.5" fill="none" stroke="#3b3363" stroke-width="2.2"/><path class="on-only" d="M3 8v8M21 8v8" stroke="#3b3363" stroke-width="2.2" stroke-linecap="round"/><path class="off-only" d="m3 4 18 16" stroke="#3b3363" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-swipe" viewBox="0 0 24 24"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4" fill="none" stroke="#3b3363" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-tap" viewBox="0 0 24 24"><circle cx="12" cy="9" r="4" fill="#ff8fb8" stroke="#3b3363" stroke-width="2"/><path d="M5 9a7 7 0 0 1 14 0" fill="none" stroke="#3b3363" stroke-width="2" stroke-linecap="round"/><path d="M12 13v8" stroke="#3b3363" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 3v17M6 14l6 6 6-6" fill="none" stroke="#3b3363" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<!-- 타이틀 -->
+<section id="title" class="screen show" aria-labelledby="logo">
+  <div class="title-top">
+    <h1 class="logo" id="logo">한강 카누<span>러너</span></h1>
+    <div class="tagline">여의도에서 광진교까지</div>
+    <div class="best-line" id="titleBest"></div>
+  </div>
+  <div class="hero-art" id="titleHero" aria-hidden="true"></div>
+  <div class="title-bottom">
+    <div class="hints" id="hints"></div>
+    <button type="button" class="pill" id="startBtn">시작하기</button>
+    <div class="toggles">
+      <button type="button" class="toggle" data-toggle="sound" aria-pressed="true"><svg><use href="#i-sound"/></svg><span>소리</span></button>
+      <button type="button" class="toggle" data-toggle="haptics" aria-pressed="true"><svg><use href="#i-vibe"/></svg><span>진동</span></button>
+    </div>
+  </div>
+</section>
+
+<!-- HUD -->
+<div id="hud" aria-hidden="true">
+  <div class="hud-top">
+    <div class="vitals">
+      <div class="vitals-row">
+        <div class="portrait" id="portrait"></div>
+        <div class="chip hearts" id="hearts"></div>
+      </div>
+      <div class="chip energy" id="energy"><svg><use href="#i-bolt"/></svg><div class="bar"><i id="energyFill"></i></div></div>
+    </div>
+    <div class="right-col">
+      <button type="button" id="pauseBtn" aria-label="일시정지"><svg><use href="#i-pause"/></svg></button>
+      <div class="chip distance"><span id="distance">0</span><small>m</small></div>
+    </div>
+    <div class="chip next-bridge" id="nextBridge"></div>
+  </div>
+</div>
+<div id="banner" role="status" aria-live="polite"></div>
+
+<!-- 일시정지 -->
+<section id="pause" class="screen dim" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
+  <div class="panel">
+    <h2 id="pauseTitle">일시정지</h2>
+    <p class="sub" id="pauseSub"></p>
+    <div class="toggles">
+      <button type="button" class="toggle" data-toggle="sound" aria-pressed="true"><svg><use href="#i-sound"/></svg><span>소리</span></button>
+      <button type="button" class="toggle" data-toggle="haptics" aria-pressed="true"><svg><use href="#i-vibe"/></svg><span>진동</span></button>
+    </div>
+    <div class="actions">
+      <button type="button" class="pill" id="resumeBtn">계속하기</button>
+      <button type="button" class="pill secondary" id="quitBtn">처음으로</button>
+    </div>
+  </div>
+</section>
+
+<!-- 게임 오버 -->
+<section id="over" class="screen dim" role="dialog" aria-modal="true" aria-labelledby="overTitle">
+  <div class="panel">
+    <div class="over-hero" id="overHero" aria-hidden="true"></div>
+    <h2 id="overTitle">게임 오버</h2>
+    <p class="sub" id="overSub"></p>
+    <dl class="stats">
+      <div><dt>거리</dt><dd id="statDist">0m</dd></div>
+      <div><dt>간식</dt><dd id="statSnack">0</dd></div>
+      <div><dt>점수</dt><dd id="statScore">0</dd></div>
+    </dl>
+    <div class="route">
+      <div class="route-label"><span>통과한 다리</span><span id="routeCount">0 / 16</span></div>
+      <div class="route-track" id="routeTrack"><div class="route-fill" id="routeFill"></div></div>
+      <div class="route-ends"><span>여의도</span><span>광진교</span></div>
+    </div>
+    <div class="actions">
+      <button type="button" class="pill" id="retryBtn">다시 하기</button>
+      <button type="button" class="pill secondary" id="homeBtn">처음으로</button>
+    </div>
+  </div>
+</section>
+
+<script>
+'use strict';
+
+/* =========================================================================
+ * 한강 카누 러너 — 3레인 무한 러너 (Canvas 의사 3D + DOM UI)
+ * runner.html 구조를 그대로 따른다.
+ *   CONFIG            → GameSettings
+ *   InputManager      → 키보드 + 스와이프 → 커맨드
+ *   CanoeController   → 레인 이동 / 노 젓기 / 몸 숙이기 / 체력 / 에너지
+ *   Pool              → ObjectPool
+ *   RiverSpawner      → 장애물, 간식, 다리 생성과 재활용
+ *   SceneryManager    → 강변 풍경 (충돌 없음)
+ *   ScoreManager      → 거리, 간식, 최고 기록
+ *   Renderer          → 원근 투영으로 강과 물체를 그린다 (UI는 DOM)
+ *   UI                → 타이틀 / HUD / 일시정지 / 게임 오버 화면
+ *   Game              → 상태 머신: ready / playing / paused / over
+ * 좌표계: x = 좌우, y = 높이, z = 카누 기준 전방 거리(m). 카누는 z = 0에 고정되고
+ * 강물과 물체가 -z 방향으로 흘러온다.
+ * ========================================================================= */
+
+const CONFIG = {
+  laneWidth: 2.4,
+  camDist: 6,
+  camFollow: 0.55,
+  startSpeed: 13,
+  maxSpeed: 32,
+  speedRamp: 0.28,          // 초당 속도 증가량
+  strokeBoost: 0.4,         // 노 한 번 저을 때 속도 증가 비율
+  strokeTime: 0.5,
+  strokeCost: 2,
+  laneChangeSpeed: 15,
+  duckDuration: 0.8,
+  canoeHalfWidth: 0.42,
+  canoeHalfDepth: 1.2,
+  sitHeight: 1.5,
+  duckHeight: 0.8,
+  maxHp: 3,
+  invulnTime: 1.5,
+  maxEnergy: 100,
+  energyDrain: 1.6,         // 초당 에너지 감소
+  lowEnergy: 22,
+  starveInterval: 3,        // 에너지 0일 때 체력이 줄어드는 간격(초)
+  starveSpeed: 0.6,
+  spawnDistance: 140,
+  drawDistance: 150,
+  firstRowZ: 40,
+  firstBridge: 320,
+  bridgeGap: 400,
+  snackScore: 20,
+};
+const RIVER_HALF = 1.5 * CONFIG.laneWidth + 2.6;
+
+const OBSTACLE_TYPES = {
+  buoy:  { w: 0.95, y0: 0,   y1: 1.3, d: 0.9 },  // 부표 — 레인 변경으로 회피
+  log:   { w: 2.0,  y0: 0,   y1: 0.55, d: 0.7 }, // 떠내려오는 나무토막 — 레인 변경으로 회피
+  duck:  { w: 1.9,  y0: 0,   y1: 2.4, d: 3.0 },  // 오리배 — 레인 변경으로 회피
+  rope:  { w: 2.4,  y0: 1.0, y1: 1.7, d: 0.3 },  // 낮게 걸친 현수막 — 몸 숙여 회피
+  pier:  { w: 1.9,  y0: 0,   y1: 4.6, d: 2.6 },  // 다리 교각
+};
+
+const SNACKS = {
+  gimbap: { energy: 22, chance: 0.5 },
+  ramen:  { energy: 32, chance: 0.35 },
+  chicken:{ energy: 50, chance: 0.15 },
+};
+
+// 마포대교부터 상류(동쪽)로 지나는 순서
+const BRIDGES = [
+  { name: '마포대교',   color: '#7c93ad' },
+  { name: '원효대교',   color: '#d9d2bf' },
+  { name: '한강철교',   color: '#a4553e', rail: true },
+  { name: '한강대교',   color: '#5f7f9b', arch: true },
+  { name: '동작대교',   color: '#3f7fc4', arch: true },
+  { name: '반포대교',   color: '#c9ccd2' },
+  { name: '한남대교',   color: '#8a9db3' },
+  { name: '동호대교',   color: '#d76a3c', arch: true },
+  { name: '성수대교',   color: '#3e6aa8', truss: true },
+  { name: '영동대교',   color: '#9aa7b6' },
+  { name: '청담대교',   color: '#6d8fb2' },
+  { name: '잠실대교',   color: '#b9b1a0' },
+  { name: '잠실철교',   color: '#8b4a3a', rail: true },
+  { name: '올림픽대교', color: '#e8e4da', tower: true },
+  { name: '천호대교',   color: '#4f86c6' },
+  { name: '광진교',     color: '#5aa06a' },
+];
+
+const FOG_RGB = [238, 236, 252];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const laneX = lane => lane * CONFIG.laneWidth;
+
+/* ---------------------------------- ART --------------------------------- */
+// 선명한 파스텔 동화: 직접 그린 SVG 캐릭터와 장애물.
+// 화면 UI에는 SVG를 그대로 넣고, 캔버스에는 한 번 래스터화해 둔 스프라이트를 그린다.
+const INK = '#3b3363';
+const SK = `stroke="${INK}" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"`;
+const SK3 = `stroke="${INK}" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"`;
+
+// 반짝이는 큰 눈
+const bigEye = (x, y, rx = 11, ry = 14) =>
+  `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="${INK}"/>` +
+  `<circle cx="${x + rx * 0.35}" cy="${y - ry * 0.4}" r="${rx * 0.38}" fill="#fff"/>` +
+  `<circle cx="${x - rx * 0.35}" cy="${y + ry * 0.4}" r="${rx * 0.18}" fill="#fff"/>`;
+const blush = (x, y, r = 9) => `<ellipse cx="${x}" cy="${y}" rx="${r}" ry="${r * 0.6}" fill="#ff8fb1" opacity="0.75"/>`;
+
+// 주인공: 아기 공룡 옷을 입은 아이 (정면). mood: happy | cheer | hit | hungry | sad
+function heroSVG(mood = 'happy') {
+  const face = {
+    happy: bigEye(80, 110) + bigEye(120, 110) +
+      `<path d="M90 130q10 9 20 0" fill="#ff7a8a" ${SK3}/>`,
+    cheer: `<path d="M68 112q12-14 24 0M108 112q12-14 24 0" fill="none" ${SK}/>` +
+      `<path d="M84 124q16 26 32 0z" fill="#ff7a8a" ${SK3}/><path d="M93 136q7-6 14 0" fill="#ffb3c4"/>`,
+    hit: `<path d="M70 100l18 10-18 10M130 100l-18 10 18 10" fill="none" ${SK}/>` +
+      `<path d="M86 134q5-6 10 0t10 0t10 0" fill="none" ${SK3}/>` +
+      `<path d="M146 76q8 10 0 16q-8-6 0-16z" fill="#8fd3ff" ${SK3}/>`,
+    hungry: `<ellipse cx="80" cy="113" rx="11" ry="9" fill="${INK}"/><ellipse cx="120" cy="113" rx="11" ry="9" fill="${INK}"/>` +
+      `<path d="M68 106h24M108 106h24" ${SK}/><circle cx="84" cy="111" r="3" fill="#fff"/><circle cx="124" cy="111" r="3" fill="#fff"/>` +
+      `<path d="M90 134q5-4 10 0t10 0" fill="none" ${SK3}/>` +
+      `<path d="M109 136q2 10 6 12q4-2 2-12" fill="#bfe8ff" ${SK3}/>`,
+    sad: bigEye(80, 112, 11, 13) + bigEye(120, 112, 11, 13) +
+      `<path d="M90 136q10-9 20 0" fill="none" ${SK3}/>` +
+      `<path d="M66 126q-4 10 2 14q6-4 2-14z" fill="#8fd3ff" ${SK3}/>`,
+  }[mood] || '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="400" height="400">
+  <path d="M150 168q34-6 38-34q4 22-14 40q-10 10-26 8z" fill="#7ee0c3" ${SK}/>
+  <path d="M174 132l6-12 4 14M184 148l9-8-1 14" fill="#ff8fb8" ${SK3}/>
+  <ellipse cx="100" cy="170" rx="56" ry="34" fill="#7ee0c3" ${SK}/>
+  <ellipse cx="100" cy="176" rx="32" ry="22" fill="#fff1a8"/>
+  <path d="M80 170h40M84 182h32" stroke="#f0cf5a" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="48" cy="160" r="13" fill="#7ee0c3" ${SK}/><circle cx="152" cy="160" r="13" fill="#7ee0c3" ${SK}/>
+  <path d="M58 44q4-26 18-22q2 14-8 28zM88 28q12-26 24 0q-6 10-24 0zM142 44q-4-26-18-22q-2 14 8 28z" fill="#ff8fb8" ${SK}/>
+  <circle cx="100" cy="98" r="72" fill="#7ee0c3" ${SK}/>
+  <ellipse cx="62" cy="58" rx="12" ry="8" fill="#b6f2df"/>
+  <circle cx="74" cy="44" r="9" fill="#fff" ${SK3}/><circle cx="126" cy="44" r="9" fill="#fff" ${SK3}/>
+  <circle cx="76" cy="46" r="4" fill="${INK}"/><circle cx="124" cy="46" r="4" fill="${INK}"/>
+  <circle cx="100" cy="114" r="50" fill="#ffe4d6" ${SK}/>
+  <path d="M60 92l8 9 8-11 8 10 8-11 8 11 8-11 8 10 8-11 8 11 8-9" fill="#fff" ${SK3}/>
+  <path d="M84 72q8 12 2 20M102 70q6 10 0 20" fill="none" stroke="#b97a5a" stroke-width="5" stroke-linecap="round"/>
+  ${blush(66, 128)}${blush(134, 128)}
+  ${face}
+</svg>`;
+}
+
+// 주인공 뒷모습 (카누 위): 등을 따라 분홍 돌기, 고개를 살짝 돌려 큰 눈 하나가 보인다
+function heroBackSVG(hit = false) {
+  const eye = hit
+    ? `<path d="M96 52l10 6-10 6" fill="none" ${SK3}/>`
+    : `<ellipse cx="101" cy="57" rx="6" ry="9" fill="${INK}"/><circle cx="103" cy="53" r="2.6" fill="#fff"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 140" width="240" height="280">
+  <path d="M84 118q30 4 30-18q8 20-8 30q-10 6-24 2z" fill="#7ee0c3" ${SK3}/>
+  <path d="M22 72q-14 8-16 22" fill="none" stroke="${INK}" stroke-width="13" stroke-linecap="round"/>
+  <path d="M22 72q-14 8-16 22" fill="none" stroke="#7ee0c3" stroke-width="7" stroke-linecap="round"/>
+  <path d="M98 72q14 8 16 22" fill="none" stroke="${INK}" stroke-width="13" stroke-linecap="round"/>
+  <path d="M98 72q14 8 16 22" fill="none" stroke="#7ee0c3" stroke-width="7" stroke-linecap="round"/>
+  <path d="M26 138q-6-62 34-66q40 4 34 66z" fill="#7ee0c3" ${SK3}/>
+  <path d="M27 104q33 10 66 0l1 14q-34 10-68 0z" fill="#ffe066" ${SK3}/>
+  <circle cx="60" cy="50" r="38" fill="#7ee0c3" ${SK3}/>
+  <path d="M88 40q16 2 14 22q-2 16-14 18z" fill="#ffe4d6" ${SK3}/>
+  ${eye}
+  <ellipse cx="97" cy="70" rx="5" ry="3" fill="#ff8fb1" opacity="0.8"/>
+  <path d="M52 14q8-14 16 0q-8 6-16 0zM50 38q10-14 20 0q-10 7-20 0zM50 64q10-12 20 0q-10 7-20 0zM51 90q9-11 18 0q-9 6-18 0zM52 114q8-10 16 0q-8 6-16 0z" fill="#ff8fb8" ${SK3}/>
+  <ellipse cx="42" cy="30" rx="8" ry="5" fill="#b6f2df"/>
+</svg>`;
+}
+
+const SPRITE_SVG = {
+  hero: heroBackSVG(false),
+  heroHit: heroBackSVG(true),
+  // 부표: 분홍 줄무늬에 동그란 얼굴
+  buoy: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140" width="200" height="280">
+  <circle cx="50" cy="20" r="11" fill="#fff6b0" ${SK3}/>
+  <path d="M50 31v10" ${SK3}/>
+  <rect x="14" y="40" width="72" height="94" rx="34" fill="#ff8fb8" ${SK3}/>
+  <path d="M15 72h70v22H15z" fill="#fff" ${SK3}/>
+  <ellipse cx="32" cy="52" rx="7" ry="4" fill="#ffc6dd"/>
+  ${bigEye(37, 110, 6, 8)}${bigEye(63, 110, 6, 8)}
+  <path d="M45 122q5 5 10 0" fill="none" ${SK3}/>
+  ${blush(26, 120, 5)}${blush(74, 120, 5)}
+</svg>`,
+  // 떠내려오는 나무토막: 졸린 얼굴과 새싹
+  log: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 90" width="400" height="180">
+  <path d="M150 30q-2-18 12-22q6 12-8 22zM150 30q8-14 24-8q-6 14-24 8z" fill="#7ee0c3" ${SK3}/>
+  <rect x="12" y="28" width="178" height="56" rx="28" fill="#f2c094" ${SK3}/>
+  <path d="M70 40h40M120 70h46M60 72h28" stroke="#d99a6c" stroke-width="4" stroke-linecap="round"/>
+  <ellipse cx="38" cy="56" rx="22" ry="27" fill="#ffe2c2" ${SK3}/>
+  <ellipse cx="38" cy="56" rx="12" ry="15" fill="none" stroke="#e8b48a" stroke-width="3.5"/>
+  <path d="M100 56q7 6 14 0M126 56q7 6 14 0" fill="none" ${SK3}/>
+  <ellipse cx="120" cy="68" rx="4" ry="3" fill="${INK}"/>
+  ${blush(98, 66, 6)}${blush(142, 66, 6)}
+  <text x="160" y="22" font-size="16" font-family="sans-serif" font-weight="700" fill="${INK}">z</text>
+  <text x="172" y="12" font-size="12" font-family="sans-serif" font-weight="700" fill="${INK}">z</text>
+</svg>`,
+  // 오리배: 노란 머리에 반짝이는 눈, 라벤더 지붕
+  duck: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" width="400" height="480">
+  <path d="M112 70v76M180 70v76" stroke="${INK}" stroke-width="5"/>
+  <path d="M100 58h92q4 0 4 6v10q-12 10-24 0q-12 10-24 0q-12 10-24 0q-12 10-24 0v-10q0-6 4-6z" fill="#c9b6ff" ${SK3}/>
+  <path d="M12 168q0-28 40-30h100q40 2 40 30v20q0 40-40 44H52q-40-4-40-44z" fill="#fffaf0" ${SK}/>
+  <path d="M14 196h172" stroke="#c9b6ff" stroke-width="10"/>
+  <path d="M120 168q30-6 48 10q-24 4-48-10z" fill="#fff" ${SK3}/>
+  <path d="M44 150q-4-40 4-64" fill="none" stroke="${INK}" stroke-width="34" stroke-linecap="round"/>
+  <path d="M44 150q-4-40 4-64" fill="none" stroke="#ffe066" stroke-width="24" stroke-linecap="round"/>
+  <circle cx="52" cy="70" r="40" fill="#ffe066" ${SK}/>
+  <path d="M40 30q6-14 14-4q4-12 10 2" fill="none" ${SK3}/>
+  ${bigEye(37, 66, 9, 12)}${bigEye(67, 66, 9, 12)}
+  <path d="M38 88q14-6 28 0q-4 14-14 16q-10-2-14-16z" fill="#ff9a7a" ${SK3}/>
+  ${blush(24, 84, 7)}${blush(80, 84, 7)}
+</svg>`,
+  // 현수막 (글자는 캔버스가 Jua 글꼴로 덧쓴다)
+  rope: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 190" width="480" height="380">
+  <rect x="8" y="10" width="14" height="180" rx="7" fill="#fff" ${SK3}/>
+  <rect x="218" y="10" width="14" height="180" rx="7" fill="#fff" ${SK3}/>
+  <path d="M10 40h10M10 80h10M10 120h10M10 160h10M220 40h10M220 80h10M220 120h10M220 160h10" stroke="#ff8fb8" stroke-width="8"/>
+  <circle cx="15" cy="10" r="9" fill="#ff8fb8" ${SK3}/><circle cx="225" cy="10" r="9" fill="#ff8fb8" ${SK3}/>
+  <path d="M22 14h196v48q-12 10-24 0q-12 10-25 0q-12 10-24 0q-12 10-25 0q-12 10-24 0q-12 10-25 0q-12 10-24 0q-13 10-25 0z" fill="#ffe066" ${SK3}/>
+  <path d="M36 24l3 7 7 1-5 5 1 7-6-4-6 4 1-7-5-5 7-1zM204 24l3 7 7 1-5 5 1 7-6-4-6 4 1-7-5-5 7-1z" fill="#ff8fb8"/>
+</svg>`,
+  gimbap: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="200" height="200">
+  <circle cx="50" cy="50" r="42" fill="#3f5a52" ${SK}/>
+  <circle cx="50" cy="50" r="33" fill="#fff"/>
+  <circle cx="40" cy="38" r="7" fill="#ffe066"/><circle cx="58" cy="36" r="6" fill="#7ee0c3"/><circle cx="50" cy="28" r="5" fill="#ff8fb8"/>
+  ${bigEye(38, 58, 5, 7)}${bigEye(62, 58, 5, 7)}
+  <path d="M45 70q5 5 10 0" fill="none" ${SK3}/>
+  ${blush(30, 68, 5)}${blush(70, 68, 5)}
+</svg>`,
+  ramen: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="200" height="200">
+  <path d="M36 16q-6-8 2-14M52 14q-6-8 2-14M68 16q-6-8 2-14" fill="none" stroke="#c9b6ff" stroke-width="4" stroke-linecap="round"/>
+  <path d="M18 34h64l-8 56q-1 6-7 6H33q-6 0-7-6z" fill="#ff7a8a" ${SK}/>
+  <rect x="12" y="22" width="76" height="16" rx="8" fill="#fff" ${SK3}/>
+  <path d="M74 22q10-8 16 0" fill="#ffe066" ${SK3}/>
+  <path d="M24 50h52" stroke="#ffc2cb" stroke-width="5"/>
+  ${bigEye(40, 66, 5, 7)}${bigEye(60, 66, 5, 7)}
+  <path d="M45 78q5 5 10 0" fill="none" ${SK3}/>
+  ${blush(31, 76, 5)}${blush(69, 76, 5)}
+</svg>`,
+  chicken: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="200" height="200">
+  <path d="M64 66l20 20" stroke="${INK}" stroke-width="16" stroke-linecap="round"/>
+  <path d="M64 66l20 20" stroke="#fff" stroke-width="9" stroke-linecap="round"/>
+  <circle cx="86" cy="80" r="7" fill="#fff" ${SK3}/><circle cx="80" cy="90" r="7" fill="#fff" ${SK3}/>
+  <path d="M14 46q0-32 34-34q30 2 28 32q-2 24-30 30q-32 2-32-28z" fill="#f6b766" ${SK}/>
+  <path d="M26 28q8-8 18-8" fill="none" stroke="#ffd79a" stroke-width="6" stroke-linecap="round"/>
+  ${bigEye(36, 46, 5, 7)}${bigEye(56, 46, 5, 7)}
+  <path d="M41 58q5 5 10 0" fill="none" ${SK3}/>
+  ${blush(27, 56, 5)}${blush(65, 56, 5)}
+</svg>`,
+};
+
+// SVG → 캔버스 스프라이트 (한 번만 래스터화)
+const SPRITES = {};
+for (const [key, svg] of Object.entries(SPRITE_SVG)) {
+  const img = new Image();
+  const spr = { ready: false, canvas: null };
+  img.onload = () => {
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth || img.width;
+    c.height = img.naturalHeight || img.height;
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    spr.canvas = c;
+    spr.ready = true;
+  };
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  SPRITES[key] = spr;
+}
+
+// 시드 고정 난수: 리사이즈해도 스카이라인이 그대로 유지됨
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+};
+const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* -------------------------------- Haptics ------------------------------- */
+// 기획: 터치/버튼 = 약한 진동, 충돌/에너지 감소 = 길고 강한 진동 2~3회
+const HAPTIC = {
+  tap: 15,
+  hit: [220, 90, 220, 90, 220],
+  starve: [220, 90, 220],
+  warn: [120, 80, 120],
+  pickup: 25,
+  bridge: [40, 60, 40],
+  record: [60, 40, 60, 40, 120],
+};
+const haptics = {
+  supported: typeof navigator.vibrate === 'function',
+  on: store.get('hangangCanoeHaptics') !== '0',
+  buzz(pattern) {
+    if (!this.on || !this.supported) return;
+    try { navigator.vibrate(pattern); } catch (e) {}
+  },
+  set(on) { this.on = on; store.set('hangangCanoeHaptics', on ? '1' : '0'); },
+};
+
+/* --------------------------------- Sound -------------------------------- */
+// Web Audio로 합성 (파일 없음). brick(1).html의 sfx 구조를 따른다.
+const sfx = (() => {
+  let ac = null, master = null, noiseBuf = null;
+  let muted = store.get('hangangCanoeMuted') === '1';
+
+  function ready() {
+    if (!ac) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      ac = new AC();
+      master = ac.createGain();
+      master.gain.value = muted ? 0 : 0.28;
+      master.connect(ac.destination);
+      noiseBuf = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    if (ac.state === 'suspended') ac.resume();
+    return true;
+  }
+
+  function tone(freq, at, len, vol, type = 'sine', to = null) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, at);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, at + len);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(vol, at + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+    o.connect(g); g.connect(master);
+    o.start(at); o.stop(at + len + 0.02);
+  }
+
+  function splash(at, len, vol, freq) {
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noiseBuf;
+    f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = 0.8;
+    g.gain.setValueAtTime(vol, at);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+    s.connect(f); f.connect(g); g.connect(master);
+    s.start(at); s.stop(at + len);
+  }
+
+  const play = fn => { if (!muted && ready()) fn(ac.currentTime); };
+  return {
+    unlock() { ready(); },
+    isMuted: () => muted,
+    setMuted(m) {
+      muted = m;
+      store.set('hangangCanoeMuted', m ? '1' : '0');
+      if (master) master.gain.value = m ? 0 : 0.28;
+    },
+    paddle: () => play(t => splash(t, 0.18, 0.5, 900 + Math.random() * 300)),
+    lane: () => play(t => splash(t, 0.12, 0.25, 1600)),
+    pickup: () => play(t => { tone(880, t, 0.12, 0.3, 'triangle'); tone(1320, t + 0.07, 0.18, 0.3, 'triangle'); }),
+    hit: () => play(t => { splash(t, 0.35, 0.7, 400); tone(220, t, 0.3, 0.35, 'square', 80); }),
+    starve: () => play(t => tone(300, t, 0.4, 0.25, 'sawtooth', 120)),
+    bridge: () => play(t => { [523, 659, 784].forEach((f, i) => tone(f, t + i * 0.09, 0.22, 0.25, 'triangle')); }),
+    wave: () => play(t => splash(t, 0.4, 0.35, 500)),
+    over: () => play(t => { [392, 330, 262].forEach((f, i) => tone(f, t + i * 0.16, 0.3, 0.25, 'triangle')); }),
+    record: () => play(t => { [523, 659, 784, 1047].forEach((f, i) => tone(f, t + i * 0.1, 0.3, 0.28, 'triangle')); }),
+  };
+})();
+
+/* ----------------------------- InputManager ----------------------------- */
+const KEYMAP = {
+  ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
+  ArrowUp: 'paddle', KeyW: 'paddle', Space: 'paddle',
+  ArrowDown: 'duck', KeyS: 'duck',
+  KeyP: 'pause', Escape: 'pause', Enter: 'start',
+};
+
+class InputManager {
+  constructor(target, isPlaying) {
+    this.queue = [];
+    window.addEventListener('keydown', e => {
+      const action = KEYMAP[e.code];
+      if (!action) return;
+      // 메뉴에서 버튼에 포커스가 있으면 버튼 기본 동작에 맡긴다
+      if (!isPlaying() && e.target.closest && e.target.closest('button')) return;
+      e.preventDefault();
+      if (!e.repeat) this.queue.push(action);
+    });
+
+    // 스와이프: 30px 이상 움직이면 즉시 커맨드 발행, 아니면 탭 = 노 젓기
+    let sx = 0, sy = 0, tracking = false;
+    target.addEventListener('touchstart', e => {
+      const t = e.changedTouches[0];
+      sx = t.clientX; sy = t.clientY; tracking = true;
+      haptics.buzz(HAPTIC.tap);
+      e.preventDefault();
+    }, { passive: false });
+    target.addEventListener('touchmove', e => {
+      if (!tracking) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - sx, dy = t.clientY - sy;
+      if (Math.hypot(dx, dy) > 30) {
+        this.queue.push(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'duck' : 'paddle'));
+        tracking = false;
+      }
+      e.preventDefault();
+    }, { passive: false });
+    target.addEventListener('touchend', e => {
+      if (tracking) this.queue.push('paddle');
+      tracking = false;
+      e.preventDefault();
+    }, { passive: false });
+    target.addEventListener('mousedown', () => this.queue.push('paddle'));
+  }
+
+  consume() {
+    const q = this.queue;
+    this.queue = [];
+    return q;
+  }
+}
+
+/* ---------------------------- CanoeController --------------------------- */
+class CanoeController {
+  constructor() { this.reset(); }
+
+  reset() {
+    this.lane = 0;
+    this.x = 0;
+    this.duckTimer = 0;
+    this.strokeTimer = 0;
+    this.strokeSide = 1;
+    this.phase = 0;
+    this.hp = CONFIG.maxHp;
+    this.energy = CONFIG.maxEnergy;
+    this.invuln = 0;
+    this.wobble = 0;
+  }
+
+  get ducking() { return this.duckTimer > 0; }
+  get height() { return this.ducking ? CONFIG.duckHeight : CONFIG.sitHeight; }
+  get boost() { return clamp(this.strokeTimer / CONFIG.strokeTime, 0, 1); }
+
+  handle(action) {
+    switch (action) {
+      case 'left':  if (this.lane > -1) { this.lane--; sfx.lane(); } break;
+      case 'right': if (this.lane < 1) { this.lane++; sfx.lane(); } break;
+      case 'duck':  this.duckTimer = CONFIG.duckDuration; break;
+      case 'paddle':
+        if (this.energy <= 0) break;
+        this.strokeTimer = CONFIG.strokeTime;
+        this.strokeSide = -this.strokeSide;
+        this.energy = Math.max(0, this.energy - CONFIG.strokeCost);
+        sfx.paddle();
+        break;
+    }
+  }
+
+  update(dt, speed) {
+    const targetX = laneX(this.lane);
+    const step = CONFIG.laneChangeSpeed * dt;
+    this.x = Math.abs(targetX - this.x) <= step ? targetX : this.x + Math.sign(targetX - this.x) * step;
+    if (this.duckTimer > 0) this.duckTimer -= dt;
+    if (this.strokeTimer > 0) this.strokeTimer -= dt;
+    if (this.invuln > 0) this.invuln -= dt;
+    if (this.wobble > 0) this.wobble = Math.max(0, this.wobble - dt);
+    this.phase += dt * (2.2 + speed * 0.08 + this.boost * 6);
+  }
+
+  bounds() {
+    return {
+      x0: this.x - CONFIG.canoeHalfWidth, x1: this.x + CONFIG.canoeHalfWidth,
+      y0: 0, y1: this.height,
+      z0: -CONFIG.canoeHalfDepth, z1: CONFIG.canoeHalfDepth,
+    };
+  }
+}
+
+/* ------------------------------ ObjectPool ------------------------------ */
+class Pool {
+  constructor() { this.free = []; }
+  get() { return this.free.pop() || {}; }
+  release(o) { this.free.push(o); }
+}
+
+// keep()이 false인 항목은 풀로 반환하고 나머지만 남긴다
+function recycle(list, pool, keep) {
+  const kept = [];
+  for (const item of list) {
+    if (keep(item)) kept.push(item);
+    else pool.release(item);
+  }
+  return kept;
+}
+
+/* ----------------------------- RiverSpawner ----------------------------- */
+class RiverSpawner {
+  constructor() {
+    this.obstacles = [];
+    this.snacks = [];
+    this.bridges = [];
+    this.waves = [];
+    this.obstaclePool = new Pool();
+    this.snackPool = new Pool();
+    this.reset();
+  }
+
+  reset() {
+    this.obstacles.forEach(o => this.obstaclePool.release(o));
+    this.snacks.forEach(c => this.snackPool.release(c));
+    this.obstacles.length = 0;
+    this.snacks.length = 0;
+    this.bridges.length = 0;
+    this.waves.length = 0;
+    this.cursor = CONFIG.firstRowZ;
+    this.bridgeCount = 0;
+    this.waveCooldown = 120;
+  }
+
+  update(dz, speed, difficulty, distance) {
+    const despawnZ = -CONFIG.camDist;
+    this.obstacles = recycle(this.obstacles, this.obstaclePool, o => { o.z -= dz; return o.z + o.d > despawnZ; });
+    this.snacks = recycle(this.snacks, this.snackPool, c => { c.z -= dz; return !c.taken && c.z > despawnZ; });
+    this.bridges = this.bridges.filter(b => { b.z -= dz; return b.z + 3 > despawnZ; });
+    this.waves = this.waves.filter(w => { w.z -= dz; return w.z > despawnZ; });
+
+    // 다리는 실제 거리 기준으로 놓는다. 장애물 행보다 먼저 알고 있어야 근처 행을 비울 수 있다
+    while (CONFIG.firstBridge + this.bridgeCount * CONFIG.bridgeGap - distance < CONFIG.spawnDistance + 40) {
+      this.addBridge(CONFIG.firstBridge + this.bridgeCount * CONFIG.bridgeGap - distance, this.bridgeCount);
+      this.bridgeCount++;
+    }
+
+    this.cursor -= dz;
+    this.waveCooldown -= dz;
+    while (this.cursor < CONFIG.spawnDistance) {
+      this.spawnRow(this.cursor, difficulty);
+      // 행 간격을 속도에 비례시켜 반응 시간을 일정 범위로 유지
+      const gap = Math.max(15, speed * (1.05 - 0.3 * difficulty + Math.random() * 0.4));
+      this.cursor += gap;
+    }
+  }
+
+  nearBridge(z, margin) { return this.bridges.some(b => Math.abs(b.z + 1.3 - z) < margin); }
+
+  addBridge(z, index) {
+    const openLane = [-1, 0, 1][(Math.random() * 3) | 0];
+    this.bridges.push({ z, index, openLane, passed: false, def: BRIDGES[index % BRIDGES.length] });
+    for (const lane of [-1, 0, 1]) {
+      if (lane === openLane) continue;
+      this.addObstacle('pier', lane, z);
+    }
+    // 열린 레인으로 유도하는 간식 줄
+    for (let i = 0; i < 3; i++) this.addSnack(openLane, z - 18 + i * 3, 'gimbap');
+  }
+
+  addObstacle(type, lane, z) {
+    const def = OBSTACLE_TYPES[type];
+    const o = this.obstaclePool.get();
+    Object.assign(o, { type, lane, x: laneX(lane), z, w: def.w, y0: def.y0, y1: def.y1, d: def.d, hit: false, seed: Math.random() });
+    this.obstacles.push(o);
+  }
+
+  spawnRow(z, difficulty) {
+    if (this.nearBridge(z, 22)) return;
+
+    // 가끔 유람선이 지나간 물결 (충돌 없음, 카누가 흔들림)
+    if (this.waveCooldown <= 0 && Math.random() < 0.18) {
+      this.waves.push({ z: z + 8, hit: false });
+      this.waveCooldown = 160;
+    }
+
+    const lanes = [-1, 0, 1].sort(() => Math.random() - 0.5);
+    const count = Math.random() < 0.3 + difficulty * 0.45 ? 2 : 1; // 항상 최소 1개 레인은 비워 둔다
+    const blocked = lanes.slice(0, count);
+    const free = lanes.slice(count);
+
+    for (const lane of blocked) {
+      const r = Math.random();
+      const type = r < 0.3 ? 'buoy' : r < 0.52 ? 'log' : r < 0.75 ? 'duck' : 'rope';
+      this.addObstacle(type, lane, z);
+    }
+
+    if (Math.random() < 0.42) {
+      const lane = free[(Math.random() * free.length) | 0];
+      const r = Math.random();
+      const kind = r < SNACKS.gimbap.chance ? 'gimbap' : r < SNACKS.gimbap.chance + SNACKS.ramen.chance ? 'ramen' : 'chicken';
+      this.addSnack(lane, z + 4, kind);
+    }
+  }
+
+  addSnack(lane, z, kind) {
+    const c = this.snackPool.get();
+    Object.assign(c, { x: laneX(lane), z, kind, taken: false, seed: Math.random() * 6 });
+    this.snacks.push(c);
+  }
+}
+
+/* ---------------------------- SceneryManager ---------------------------- */
+// 강변 한강공원: 나무, 가로등, 그늘막 텐트 (충돌 없음)
+class SceneryManager {
+  constructor() {
+    this.items = [];
+    this.pool = new Pool();
+    this.cursor = -CONFIG.camDist;
+    this.update(0);
+  }
+
+  update(dz) {
+    this.items = recycle(this.items, this.pool, it => { it.z -= dz; return it.z > -CONFIG.camDist + 1; });
+    this.cursor -= dz;
+    while (this.cursor < CONFIG.spawnDistance) {
+      this.spawnSlice(this.cursor);
+      this.cursor += 4 + Math.random() * 2;
+    }
+  }
+
+  add(props) {
+    const it = this.pool.get();
+    Object.assign(it, props);
+    this.items.push(it);
+  }
+
+  spawnSlice(z) {
+    const edge = RIVER_HALF + 0.9;
+    const rand = (a, b) => a + Math.random() * (b - a);
+    for (const side of [-1, 1]) {
+      if (Math.random() < 0.5) this.add({ kind: 'lamp', x: side * (edge + 0.4), z, size: 3.2, seed: 0 });
+      const r = Math.random();
+      if (r < 0.55) this.add({ kind: 'tree', x: side * rand(edge + 2, edge + 9), z: z + rand(0, 2), size: rand(2.4, 3.6), seed: Math.random() });
+      else if (r < 0.75) this.add({ kind: 'tent', x: side * rand(edge + 2.5, edge + 6), z: z + rand(0, 2), size: rand(1.4, 1.9), seed: Math.random() });
+      if (Math.random() < 0.45) this.add({ kind: 'tree', x: side * rand(edge + 10, edge + 22), z: z + rand(0, 3), size: rand(3, 4.5), seed: Math.random() });
+    }
+  }
+}
+
+/* ----------------------------- ScoreManager ----------------------------- */
+class ScoreManager {
+  constructor() {
+    this.best = Number(store.get('hangangCanoeBest')) || 0;
+    this.reset();
+  }
+  reset() { this.distance = 0; this.snacks = 0; this.bridges = 0; this.newBest = false; }
+  get score() { return Math.floor(this.distance) + this.snacks * CONFIG.snackScore; }
+  commit() {
+    if (this.score > this.best) {
+      this.best = this.score;
+      this.newBest = true;
+      store.set('hangangCanoeBest', String(this.best));
+    }
+  }
+}
+
+/* ------------------------------- Renderer ------------------------------- */
+class Renderer {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.camX = 0;
+    this.shakeX = 0;
+    this.shakeY = 0;
+    this.shadeCache = new Map();
+    const r = mulberry32(88);
+    this.skyline = Array.from({ length: 46 }, (_, i) => ({ x: i / 45, w: 0.012 + r() * 0.02, h: 0.25 + r() * 0.75, tone: r() }));
+    this.clouds = Array.from({ length: 6 }, () => ({ x: r(), y: 0.12 + r() * 0.45, s: 0.6 + r() * 0.8 }));
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+  }
+
+  resize() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    this.W = window.innerWidth;
+    this.H = window.innerHeight;
+    this.canvas.width = Math.round(this.W * dpr);
+    this.canvas.height = Math.round(this.H * dpr);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // 세로 화면에서는 카메라를 높여 강이 더 많이 보이게 한다
+    const portrait = this.H > this.W;
+    this.camH = portrait ? 5.2 : 3.6;
+    this.scale0 = Math.min(this.W * 0.9 / (3 * CONFIG.laneWidth + 0.8), this.H / 8.5);
+    this.horizon = this.H * (portrait ? 0.86 : 0.88) - this.camH * this.scale0;
+    this.cx = this.W / 2;
+  }
+
+  project(x, y, z) {
+    const s = this.scale0 * CONFIG.camDist / (z + CONFIG.camDist);
+    return [this.cx + (x - this.camX) * s + this.shakeX, this.horizon + (this.camH - y) * s + this.shakeY, s];
+  }
+
+  shade(hex, f, z = 0) {
+    // z가 멀수록 하늘빛 안개 쪽으로 섞어 대기 원근감을 준다
+    const q = Math.round(clamp(z / CONFIG.drawDistance, 0, 1) * 16);
+    const key = hex + f + '|' + q;
+    let c = this.shadeCache.get(key);
+    if (!c) {
+      const n = parseInt(hex.slice(1), 16);
+      const t = Math.pow(q / 16, 0.9) * 0.75;
+      const ch = (v, fog) => (Math.min(255, v * f) * (1 - t) + fog * t) | 0;
+      c = `rgb(${ch((n >> 16) & 255, FOG_RGB[0])},${ch((n >> 8) & 255, FOG_RGB[1])},${ch(n & 255, FOG_RGB[2])})`;
+      this.shadeCache.set(key, c);
+    }
+    return c;
+  }
+
+  poly(pts, fill, stroke, lw) {
+    const ctx = this.ctx;
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.stroke(); }
+  }
+
+  circle(x, y, r, fill, stroke, lw) {
+    const ctx = this.ctx;
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(0.5, r), 0, Math.PI * 2);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
+  }
+
+  line(x0, y0, x1, y1, width, color) {
+    const ctx = this.ctx;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+  }
+
+  // 축 정렬 박스: 보이는 면(윗면, 옆면, 앞면)만 그린다
+  box(x, w, y0, y1, z0, z1, color, outline = true) {
+    const near = -CONFIG.camDist + 0.4;
+    if (z1 <= near) return;
+    z0 = Math.max(z0, near);
+    const xl = x - w / 2, xr = x + w / 2;
+    const f = [this.project(xl, y0, z0), this.project(xr, y0, z0), this.project(xr, y1, z0), this.project(xl, y1, z0)];
+    const b = [this.project(xl, y0, z1), this.project(xr, y0, z1), this.project(xr, y1, z1), this.project(xl, y1, z1)];
+    // 가까운 물체만 만화풍 외곽선
+    const lw = outline && z0 < 60 ? Math.max(1, f[0][2] * 0.035) : 0;
+    const ol = lw ? this.shade('#3b3363', 1, z0) : null;
+    if (y1 < this.camH) this.poly([f[3], f[2], b[2], b[3]], this.shade(color, 1.18, z0), ol, lw);
+    if (xl > this.camX) this.poly([f[0], f[3], b[3], b[0]], this.shade(color, 0.72, z0), ol, lw);
+    if (xr < this.camX) this.poly([f[1], f[2], b[2], b[1]], this.shade(color, 0.72, z0), ol, lw);
+    this.poly(f, this.shade(color, 1, z0), ol, lw);
+  }
+
+  // 바닥(y0)을 기준으로 세운 SVG 스프라이트 (월드 단위 너비 w, 높이 h)
+  sprite(key, x, y0, z, w, h) {
+    const spr = SPRITES[key];
+    if (!spr || !spr.ready || z < -CONFIG.camDist + 0.4) return;
+    const [px, py, s] = this.project(x, y0, z);
+    this.ctx.drawImage(spr.canvas, px - w * s / 2, py - h * s, w * s, h * s);
+  }
+
+  render(game, dt) {
+    const ctx = this.ctx;
+    const p = game.canoe;
+    this.camX += (p.x * CONFIG.camFollow - this.camX) * Math.min(1, dt * 8);
+    const shake = reduceMotion ? 0 : game.shake;
+    this.shakeX = (Math.random() - 0.5) * shake * 22;
+    this.shakeY = (Math.random() - 0.5) * shake * 22;
+
+    this.drawSky(game.time);
+    this.drawRiver(game.score.distance, game.time);
+
+    // 페인터 알고리즘: 먼 것부터
+    const items = [];
+    for (const o of game.spawner.obstacles) items.push({ key: o.z + o.d, draw: () => this.drawObstacle(o, game.time) });
+    for (const c of game.spawner.snacks) items.push({ key: c.z, draw: () => this.drawSnack(c, game.time) });
+    for (const b of game.spawner.bridges) items.push({ key: b.z + 3.2, draw: () => this.drawBridge(b) });
+    for (const w of game.spawner.waves) items.push({ key: w.z, draw: () => this.drawWave(w, game.time) });
+    for (const s of game.scenery.items) items.push({ key: s.z, draw: () => this.drawScenery(s, game.time) });
+    items.push({ key: CONFIG.canoeHalfDepth - 0.2, draw: () => this.drawCanoe(p, game) });
+    items.sort((a, b) => b.key - a.key);
+    for (const it of items) {
+      ctx.globalAlpha = clamp((CONFIG.drawDistance - it.key) / 30, 0, 1);
+      it.draw();
+    }
+    ctx.globalAlpha = 1;
+
+    if (game.flash > 0 && !reduceMotion) {
+      ctx.fillStyle = `rgba(255,255,255,${game.flash})`;
+      ctx.fillRect(0, 0, this.W, this.H);
+    }
+    if (p.boost > 0.05 && !reduceMotion) this.drawSpeedLines(p.boost, game.time);
+  }
+
+  drawSky(time) {
+    const ctx = this.ctx, W = this.W, hz = this.horizon;
+    const g = ctx.createLinearGradient(0, 0, 0, hz);
+    g.addColorStop(0, '#6ec3ff');
+    g.addColorStop(0.65, '#b8e4ff');
+    g.addColorStop(1, '#fde6f3');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, hz + 2);
+
+    // 해
+    const sr = Math.min(W, this.H) * 0.07;
+    this.circle(W * 0.8 - this.camX * 2, hz * 0.28, sr * 1.5, 'rgba(255,240,170,0.35)');
+    this.circle(W * 0.8 - this.camX * 2, hz * 0.28, sr, '#fff3b0');
+
+    // 뭉게구름 (천천히 흐름)
+    for (const c of this.clouds) {
+      const x = ((c.x * 1.4 + time * 0.004 * c.s) % 1.4 - 0.2) * W - this.camX * 3;
+      const y = c.y * hz, r = Math.min(W, this.H) * 0.045 * c.s;
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.arc(x + r * 1.1, y - r * 0.4, r * 1.25, 0, Math.PI * 2);
+      ctx.arc(x + r * 2.3, y, r * 0.95, 0, Math.PI * 2);
+      ctx.rect(x, y - r * 0.2, r * 2.3, r * 1.1);
+      ctx.fill();
+    }
+
+    // 산 능선과 남산타워
+    const span = W * 1.5, off = -W * 0.25 - this.camX * 5;
+    ctx.fillStyle = '#a9e3c4';
+    ctx.beginPath();
+    ctx.moveTo(off, hz + 1);
+    for (let i = 0; i <= 12; i++) ctx.lineTo(off + span * i / 12, hz - this.H * (0.05 + 0.04 * Math.sin(i * 1.7) + (i === 3 ? 0.04 : 0)));
+    ctx.lineTo(off + span, hz + 1);
+    ctx.fill();
+    const tx = off + span * 0.25, ty = hz - this.H * 0.13, th = this.H * 0.09;
+    ctx.fillStyle = '#e9f3fa';
+    ctx.fillRect(tx - th * 0.03, ty - th, th * 0.06, th);
+    ctx.fillRect(tx - th * 0.1, ty - th * 0.72, th * 0.2, th * 0.1);
+    ctx.fillRect(tx - th * 0.012, ty - th * 1.25, th * 0.024, th * 0.3);
+
+    // 아파트 스카이라인
+    const sky = this.skyline, base = hz + 1, sh = this.H * 0.075, sspan = W * 1.4, soff = -W * 0.2 - this.camX * 8;
+    for (const b of sky) {
+      const x = soff + b.x * sspan, w = b.w * sspan, h = sh * b.h;
+      ctx.fillStyle = b.tone < 0.33 ? '#d8cff5' : b.tone < 0.66 ? '#c6dcf7' : '#f3d3e6';
+      ctx.fillRect(x, base - h, w, h);
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      for (let wy = base - h + 3; wy < base - 3; wy += 5) ctx.fillRect(x + 2, wy, Math.max(1, w - 4), 1.2);
+    }
+
+    const mist = ctx.createLinearGradient(0, hz - this.H * 0.04, 0, hz + 2);
+    mist.addColorStop(0, 'rgba(250,234,246,0)');
+    mist.addColorStop(1, 'rgba(250,234,246,0.85)');
+    ctx.fillStyle = mist;
+    ctx.fillRect(0, hz - this.H * 0.04, W, this.H * 0.04 + 2);
+  }
+
+  drawRiver(distance, time) {
+    const ctx = this.ctx;
+    ctx.fillStyle = '#4fb6ee';
+    ctx.fillRect(0, this.horizon, this.W, this.H - this.horizon);
+
+    const seg = 4, half = RIVER_HALF;
+    const off = distance % (seg * 2);
+    const nearZ = -CONFIG.camDist + 0.6;
+    const P = (x, y, z) => this.project(x, y, z);
+    for (let i = Math.ceil(CONFIG.drawDistance / seg) + 1; i >= -2; i--) {
+      let z0 = i * seg - off;
+      const z1 = z0 + seg;
+      if (z1 <= nearZ) continue;
+      z0 = Math.max(z0, nearZ);
+      const even = (i & 1) === 0;
+      const quad = (xa, xb, color, za = z0, zb = z1, y = 0) =>
+        this.poly([P(xa, y, za), P(xb, y, za), P(xb, y, zb), P(xa, y, zb)], this.shade(color, 1, za));
+
+      // 강변 잔디, 산책로, 돌 호안
+      const grass = even ? '#8edc86' : '#84d47c';
+      quad(-90, -half - 3.2, grass, z0, z1, 0.6);
+      quad(half + 3.2, 90, grass, z0, z1, 0.6);
+      quad(-half - 3.2, -half - 1.6, '#ffe6c2', z0, z1, 0.6);
+      quad(half + 1.6, half + 3.2, '#ffe6c2', z0, z1, 0.6);
+      quad(-half - 1.6, -half - 0.9, grass, z0, z1, 0.6);
+      quad(half + 0.9, half + 1.6, grass, z0, z1, 0.6);
+      this.poly([P(-half - 0.9, 0.6, z0), P(-half, 0, z0), P(-half, 0, z1), P(-half - 0.9, 0.6, z1)], this.shade('#c3bce0', 1, z0));
+      this.poly([P(half, 0, z0), P(half + 0.9, 0.6, z0), P(half + 0.9, 0.6, z1), P(half, 0, z1)], this.shade('#dcd6f0', 1, z0));
+
+      // 강물: 약간씩 다른 파랑 띠
+      quad(-half, half, even ? '#4fb6ee' : '#47aee8');
+      if (even) {
+        // 물결 하이라이트
+        const zm = z0 + 1 + ((i * 7) % 3) * 0.6;
+        for (const wx of [-4.6, -1.3, 2.1, 5.2]) {
+          const x = wx + Math.sin(i * 1.3 + wx) * 0.8;
+          quad(x - 0.5, x + 0.5, '#b4e6ff', zm, zm + 0.18);
+        }
+        // 레인 구분: 경기 코스용 부표 로프
+        for (const lx of [-CONFIG.laneWidth / 2, CONFIG.laneWidth / 2]) {
+          for (let k = 0; k < 2; k++) {
+            const zb = z0 + k * 2 + 0.3;
+            quad(lx - 0.13, lx + 0.13, k ? '#ffffff' : '#ff8fb8', zb, zb + 0.6, 0.04);
+          }
+        }
+      }
+    }
+
+    // 지평선 안개
+    const fog = ctx.createLinearGradient(0, this.horizon, 0, this.horizon + this.H * 0.06);
+    fog.addColorStop(0, 'rgba(250,234,246,0.85)');
+    fog.addColorStop(1, 'rgba(250,234,246,0)');
+    ctx.fillStyle = fog;
+    ctx.fillRect(0, this.horizon, this.W, this.H * 0.06);
+  }
+
+  drawObstacle(o, time) {
+    const z0 = o.z, z1 = o.z + o.d;
+    const bob = Math.sin(time * 2.4 + o.seed * 6) * 0.06;
+    // 물 위에 뜬 물체 아래 잔물결
+    if (o.type !== 'pier' && o.type !== 'rope' && z0 > -CONFIG.camDist + 0.4) {
+      const [rx, ry, rs] = this.project(o.x, 0, z0);
+      const ctx = this.ctx;
+      ctx.beginPath();
+      ctx.ellipse(rx, ry, o.w * 0.6 * rs, 0.16 * rs, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fill();
+    }
+    switch (o.type) {
+      case 'buoy': this.sprite('buoy', o.x, -0.05 + bob, z0, 1.0, 1.4); break;
+      case 'log':  this.sprite('log', o.x, -0.1 + bob, z0, 2.1, 0.95); break;
+      case 'duck': this.sprite('duck', o.x, -0.1 + bob, z0, 2.0, 2.4); break;
+      case 'rope': {
+        // 두 기둥 사이에 걸친 현수막 — 숙여야 지나간다
+        this.sprite('rope', o.x, 0, z0, o.w, 1.9);
+        const [cx, cy, s] = this.project(o.x, o.y1 - 0.25, z0 - 0.01);
+        if (s > 8) {
+          const ctx = this.ctx;
+          ctx.fillStyle = '#3b3363';
+          ctx.font = `${Math.round(s * 0.34)}px Jua, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('숙여요!', cx, cy);
+        }
+        break;
+      }
+      case 'pier': {
+        this.box(o.x, o.w, 0, o.y1, z0, z1, '#d6cfec');
+        this.box(o.x, o.w + 0.15, 0, 0.35, z0 - 0.05, z1 + 0.05, '#ab9fd1');
+        break;
+      }
+    }
+  }
+
+  drawBridge(b) {
+    const def = b.def, z0 = b.z, z1 = b.z + 2.6;
+    const deckY0 = 4.6, deckY1 = 5.5;
+    // 강 밖 교각과 상판
+    for (const x of [-RIVER_HALF - 2, RIVER_HALF + 2, -RIVER_HALF - 12, RIVER_HALF + 12]) this.box(x, 1.6, 0, deckY0, z0 + 0.2, z1 - 0.2, '#d6cfec', false);
+    this.box(0, 80, deckY0, deckY1, z0, z1, def.color);
+    this.box(0, 80, deckY1, deckY1 + 0.35, z0 + 0.1, z0 + 0.25, '#f2f5f8');
+    if (def.arch || def.tower || def.truss || def.rail) {
+      const ctx = this.ctx;
+      const lw = Math.max(1.5, this.project(0, 0, z0)[2] * 0.12);
+      ctx.strokeStyle = this.shade(def.color, 0.85, z0);
+      ctx.lineWidth = lw;
+      ctx.beginPath();
+      if (def.arch) {
+        for (const cx of [-5, 5]) {
+          for (let k = 0; k <= 16; k++) {
+            const t = k / 16, x = cx - 4.5 + t * 9, y = deckY1 + Math.sin(t * Math.PI) * 3;
+            const [px, py] = this.project(x, y, z0);
+            k ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+          }
+        }
+      } else if (def.tower) {
+        const [ax, ay] = this.project(0, deckY1, z0), [bx, by] = this.project(0, deckY1 + 7, z0);
+        ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+        for (const sx of [-8, -5, 5, 8]) { const [cx, cy] = this.project(sx, deckY1, z0); ctx.moveTo(bx, by); ctx.lineTo(cx, cy); }
+      } else {
+        // 트러스 / 철교
+        for (let x = -12; x < 12; x += 2) {
+          const [ax, ay] = this.project(x, deckY1, z0), [bx2, by2] = this.project(x + 2, deckY1 + 1.8, z0), [cx, cy] = this.project(x + 4, deckY1, z0);
+          ctx.moveTo(ax, ay); ctx.lineTo(bx2, by2); ctx.lineTo(cx, cy);
+        }
+      }
+      ctx.stroke();
+    }
+    // 다리 이름 표지판
+    const [sx, sy, s] = this.project(laneX(b.openLane), deckY0 + 0.45, z0 - 0.02);
+    if (s > 4) {
+      const ctx = this.ctx;
+      const fs = Math.round(clamp(s * 0.55, 10, 44));
+      ctx.font = `${fs}px Jua, sans-serif`;
+      const label = def.name;
+      const tw = ctx.measureText(label).width + fs;
+      ctx.fillStyle = '#3b3363';
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(sx - tw / 2, sy - fs * 0.7, tw, fs * 1.4, fs * 0.7) : ctx.rect(sx - tw / 2, sy - fs * 0.7, tw, fs * 1.4);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, sx, sy + fs * 0.05);
+    }
+  }
+
+  drawWave(w, time) {
+    const ctx = this.ctx;
+    for (let k = 0; k < 3; k++) {
+      const z = w.z + k * 1.2;
+      if (z < -CONFIG.camDist + 0.6) continue;
+      ctx.beginPath();
+      for (let i = 0; i <= 24; i++) {
+        const x = -RIVER_HALF + i * (2 * RIVER_HALF / 24);
+        const [px, py] = this.project(x, 0.05 + Math.sin(i * 0.9 + time * 4 + k) * 0.12, z);
+        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.strokeStyle = this.shade('#ffffff', 1, z);
+      ctx.lineWidth = Math.max(1.5, this.project(0, 0, z)[2] * 0.12);
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+  }
+
+  drawSnack(c, time) {
+    if (c.z < -CONFIG.camDist + 0.6) return;
+    const bob = Math.sin(time * 3 + c.seed) * 0.12;
+    const [x, y, s] = this.project(c.x, 0.9 + bob, c.z);
+    const [rx, ry] = this.project(c.x, 0.02, c.z);
+    const lw = Math.max(1, s * 0.04);
+    const ctx = this.ctx;
+    // 물에 뜬 튜브
+    ctx.beginPath();
+    ctx.ellipse(rx, ry, 0.6 * s, 0.2 * s, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fill();
+    // 빛나는 원판 위에 얼굴 있는 간식
+    this.circle(x, y, 0.62 * s, 'rgba(255,250,240,0.92)', '#3b3363', lw);
+    const spr = SPRITES[c.kind];
+    if (spr && spr.ready) this.ctx.drawImage(spr.canvas, x - 0.52 * s, y - 0.52 * s, 1.04 * s, 1.04 * s);
+  }
+
+  drawScenery(it, time) {
+    const [bx, by, s] = this.project(it.x, 0.6, it.z);
+    if (bx < -this.W * 0.5 || bx > this.W * 1.5) return;
+    const col = (hex, f = 1) => this.shade(hex, f, it.z);
+    const lw = it.z < 50 ? Math.max(1, s * 0.035) : 0;
+    const ol = lw ? col('#3b3363') : null;
+    switch (it.kind) {
+      case 'tree': {
+        const [tx, ty] = this.project(it.x, 0.6 + it.size * 0.45, it.z);
+        this.line(bx, by, tx, ty, Math.max(1.5, s * 0.22), col('#c98d63'));
+        const r = it.size * 0.42 * s;
+        this.circle(tx, ty - r * 0.5, r, col(it.seed < 0.5 ? '#5fca7a' : it.seed < 0.8 ? '#6fd38a' : '#ffb3d1'), ol, lw);
+        this.circle(tx - r * 0.35, ty - r * 0.75, r * 0.45, col(it.seed < 0.8 ? '#a8ecb4' : '#ffd6e7'));
+        break;
+      }
+      case 'lamp': {
+        const [tx, ty] = this.project(it.x, 0.6 + it.size, it.z);
+        this.line(bx, by, tx, ty, Math.max(1, s * 0.08), col('#4a5c70'));
+        this.circle(tx, ty, Math.max(1.5, s * 0.16), col('#fff6c8'), ol, lw);
+        break;
+      }
+      case 'tent': {
+        const sz = it.size;
+        const c = it.seed < 0.33 ? '#ff8fb8' : it.seed < 0.66 ? '#8fd3ff' : '#ffe066';
+        const a = this.project(it.x - sz, 0.6, it.z), b2 = this.project(it.x + sz, 0.6, it.z), t = this.project(it.x, 0.6 + sz * 1.1, it.z);
+        this.poly([a, b2, t], col(c), ol, lw);
+        this.poly([[t[0], t[1]], [b2[0], b2[1]], [(b2[0] + t[0]) / 2 + s * 0.2, b2[1]]], col(c, 0.75));
+        break;
+      }
+    }
+  }
+
+  drawCanoe(p, game) {
+    // 무적 시간에는 깜빡임
+    if (p.invuln > 0 && !reduceMotion && Math.floor(p.invuln * 10) % 2 === 0) return;
+    const ctx = this.ctx;
+    const wob = p.wobble > 0 && !reduceMotion ? Math.sin(game.time * 22) * 0.12 * p.wobble : 0;
+    const x = p.x + wob;
+    const P = (dx, y, z) => this.project(x + dx, y, z);
+
+    // 물보라 V자
+    const [fx, fy, fs] = P(0, 0.02, 1.5);
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.beginPath();
+    ctx.moveTo(fx, fy);
+    const [l1x, l1y] = P(-0.9 - p.boost * 0.4, 0.02, -1.8), [r1x, r1y] = P(0.9 + p.boost * 0.4, 0.02, -1.8);
+    ctx.lineTo(l1x, l1y); ctx.lineTo(r1x, r1y); ctx.closePath(); ctx.fill();
+
+    // 선체: 위에서 본 카누 모양
+    const hull = [];
+    const N = 12;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N, z = -1.25 + t * 2.75, w = Math.sin(t * Math.PI) * 0.46;
+      hull.push(P(-w, 0.22, z));
+    }
+    for (let i = N; i >= 0; i--) {
+      const t = i / N, z = -1.25 + t * 2.75, w = Math.sin(t * Math.PI) * 0.46;
+      hull.push(P(w, 0.22, z));
+    }
+    const lw = Math.max(1.5, fs * 0.05);
+    // 선체 옆면
+    this.poly([P(-0.46, 0.22, 0.1), P(0.46, 0.22, 0.1), P(0.4, -0.05, 0.1), P(-0.4, -0.05, 0.1)], '#d9578a', '#3b3363', lw);
+    this.poly(hull, '#ff8fb8', '#3b3363', lw);
+    // 좌석 안쪽
+    const [cx0, cy0] = P(0, 0.22, 0.1);
+    this.poly(hull.map(([hx, hy]) => [cx0 + (hx - cx0) * 0.55, cy0 + (hy - cy0) * 0.62]), '#c9b6ff');
+
+    // 아기 공룡 옷을 입은 주인공 (뒷모습). 숙이면 납작해진다
+    const sw = Math.sin(p.phase * 2.2) * (0.6 + p.boost * 0.5);
+    const sprH = p.ducking ? 0.95 : 1.45;
+    this.sprite(p.invuln > 0 ? 'heroHit' : 'hero', x, 0.12, -0.15, 1.25, sprH);
+
+    // 노: 양 끝에 버터색 날
+    const handY = p.ducking ? 0.45 : 0.75;
+    const bladeL = P(-1.15, handY - 0.35 + Math.max(0, sw) * 0.5, -0.1 - sw * 0.4);
+    const bladeR = P(1.15, handY - 0.35 + Math.max(0, -sw) * 0.5, -0.1 + sw * 0.4);
+    this.line(bladeL[0], bladeL[1], bladeR[0], bladeR[1], Math.max(2, fs * 0.07), '#3b3363');
+    this.line(bladeL[0], bladeL[1], bladeR[0], bladeR[1], Math.max(1, fs * 0.035), '#fff1d6');
+    for (const bd of [bladeL, bladeR]) {
+      ctx.beginPath();
+      ctx.ellipse(bd[0], bd[1], fs * 0.13, fs * 0.07, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffe066'; ctx.fill();
+      ctx.strokeStyle = '#3b3363'; ctx.lineWidth = Math.max(1, fs * 0.03); ctx.stroke();
+    }
+  }
+
+  drawSpeedLines(boost, time) {
+    const ctx = this.ctx, W = this.W, H = this.H;
+    ctx.strokeStyle = `rgba(255,255,255,${0.35 * boost})`;
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 10; i++) {
+      const side = i % 2 ? 1 : -1;
+      const x = W / 2 + side * W * (0.3 + ((i * 0.137 + time * 1.7) % 0.25));
+      const y = H * (0.45 + ((i * 0.29 + time * 2.3) % 0.5));
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + side * W * 0.05, y + H * 0.08);
+      ctx.stroke();
+    }
+  }
+}
+
+/* ---------------------------------- UI ---------------------------------- */
+const $ = id => document.getElementById(id);
+const fmt = n => Math.floor(n).toLocaleString('ko-KR');
+
+class UI {
+  constructor(game) {
+    this.game = game;
+    this.screens = { ready: $('title'), paused: $('pause'), over: $('over') };
+    this.hud = $('hud');
+    this.banner = $('banner');
+    this.last = {};
+
+    $('titleHero').innerHTML = heroSVG('happy');
+    const heartHtml = '<svg><use href="#i-heart"/></svg>';
+    $('hearts').innerHTML = heartHtml.repeat(CONFIG.maxHp);
+    this.heartEls = [...$('hearts').children];
+
+    const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const hints = touch
+      ? [['i-swipe', '밀어서 레인 이동'], ['i-tap', '탭해서 노 젓기'], ['i-down', '아래로 밀면 숙이기']]
+      : [['i-swipe', '← → 레인 이동'], ['i-tap', 'Space 노 젓기'], ['i-down', '↓ 숙이기']];
+    $('hints').innerHTML = hints.map(([icon, text]) => `<span class="hint"><svg aria-hidden="true"><use href="#${icon}"/></svg>${text}</span>`).join('');
+
+    // 버튼: 누를 때 약한 진동
+    document.querySelectorAll('button').forEach(b => b.addEventListener('pointerdown', () => haptics.buzz(HAPTIC.tap)));
+    $('startBtn').addEventListener('click', () => game.start());
+    $('retryBtn').addEventListener('click', () => game.start());
+    $('resumeBtn').addEventListener('click', () => game.resume());
+    $('pauseBtn').addEventListener('click', () => game.pause());
+    $('quitBtn').addEventListener('click', () => game.toTitle());
+    $('homeBtn').addEventListener('click', () => game.toTitle());
+
+    document.querySelectorAll('[data-toggle]').forEach(btn => btn.addEventListener('click', () => {
+      if (btn.dataset.toggle === 'sound') { sfx.setMuted(!sfx.isMuted()); sfx.unlock(); }
+      else if (haptics.supported) { haptics.set(!haptics.on); haptics.buzz(HAPTIC.bridge); }
+      this.paintToggles();
+    }));
+    this.paintToggles();
+    this.paintBest();
+  }
+
+  paintToggles() {
+    document.querySelectorAll('[data-toggle]').forEach(btn => {
+      const sound = btn.dataset.toggle === 'sound';
+      const on = sound ? !sfx.isMuted() : haptics.on && haptics.supported;
+      btn.setAttribute('aria-pressed', String(on));
+      const label = sound ? (on ? '소리 켜짐' : '소리 꺼짐')
+        : !haptics.supported ? '진동 미지원' : on ? '진동 켜짐' : '진동 꺼짐';
+      btn.querySelector('span').textContent = label;
+      if (!sound && !haptics.supported) { btn.setAttribute('aria-disabled', 'true'); btn.title = '이 기기나 브라우저는 진동을 지원하지 않아요'; }
+    });
+  }
+
+  paintBest() {
+    const best = this.game.score.best;
+    $('titleBest').textContent = best ? `최고 기록 ${fmt(best)}점` : '첫 출발이에요!';
+  }
+
+  show(state) {
+    for (const [key, el] of Object.entries(this.screens)) el.classList.toggle('show', key === state);
+    this.hud.classList.toggle('show', state === 'playing' || state === 'paused');
+    const focus = { ready: 'startBtn', paused: 'resumeBtn', over: 'retryBtn' }[state];
+    if (focus) setTimeout(() => $(focus).focus({ preventScroll: true }), 50);
+    else if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  }
+
+  popBanner(text, warn = false) {
+    const b = this.banner;
+    b.textContent = text;
+    b.classList.toggle('warn', warn);
+    b.classList.remove('pop');
+    void b.offsetWidth;
+    b.classList.add('pop');
+  }
+
+  // HUD는 값이 바뀔 때만 DOM을 건드린다
+  updateHud() {
+    const g = this.game, p = g.canoe, L = this.last;
+    if (L.hp !== p.hp) {
+      this.heartEls.forEach((el, i) => el.classList.toggle('lost', i >= p.hp));
+      L.hp = p.hp;
+    }
+    const e = Math.ceil(p.energy);
+    if (L.energy !== e) {
+      $('energyFill').style.width = (p.energy / CONFIG.maxEnergy * 100) + '%';
+      $('energy').classList.toggle('low', p.energy <= CONFIG.lowEnergy);
+      L.energy = e;
+    }
+    // 초상화 표정: 부딪힘 > 배고픔 > 신남 > 기본
+    const mood = p.invuln > 0 ? 'hit' : p.energy <= CONFIG.lowEnergy ? 'hungry' : g.cheerTimer > 0 ? 'cheer' : 'happy';
+    if (L.mood !== mood) { $('portrait').innerHTML = heroSVG(mood); L.mood = mood; }
+    const d = Math.floor(g.score.distance);
+    if (L.dist !== d) { $('distance').textContent = fmt(d); L.dist = d; }
+    const next = g.nextBridge();
+    const nb = `${next.name}|${Math.ceil(next.left / 10)}`;
+    if (L.nb !== nb) {
+      $('nextBridge').innerHTML = `다음 다리 <b>${next.name}</b> · ${fmt(Math.max(0, next.left))}m`;
+      L.nb = nb;
+    }
+  }
+
+  fillPause() {
+    const g = this.game;
+    $('pauseSub').textContent = `${fmt(g.score.distance)}m · ${g.score.bridges ? BRIDGES[(g.score.bridges - 1) % BRIDGES.length].name + '까지 왔어요' : '아직 첫 다리 전이에요'}`;
+  }
+
+  fillOver() {
+    const s = this.game.score;
+    const title = $('overTitle');
+    title.textContent = s.newBest ? '신기록!' : '게임 오버';
+    title.classList.toggle('record', s.newBest);
+    $('overHero').innerHTML = heroSVG(s.newBest ? 'cheer' : 'sad');
+    const lastName = s.bridges ? BRIDGES[(s.bridges - 1) % BRIDGES.length].name : null;
+    $('overSub').textContent = lastName ? `${lastName}까지 갔어요 · 최고 ${fmt(s.best)}점` : `첫 다리 전에 멈췄어요 · 최고 ${fmt(s.best)}점`;
+    $('statDist').textContent = fmt(s.distance) + 'm';
+    $('statSnack').textContent = s.snacks;
+    $('statScore').textContent = fmt(s.score);
+
+    const total = BRIDGES.length, passed = Math.min(s.bridges, total);
+    $('routeCount').textContent = s.bridges > total ? `${s.bridges}개 (완주!)` : `${passed} / ${total}`;
+    const track = $('routeTrack');
+    track.querySelectorAll('.route-dot').forEach(d => d.remove());
+    BRIDGES.forEach((b, i) => {
+      const dot = document.createElement('span');
+      dot.className = 'route-dot' + (i < passed ? ' done' : '') + (i === passed - 1 ? ' last' : '');
+      dot.style.left = (i / (total - 1) * 100) + '%';
+      dot.title = b.name;
+      track.appendChild(dot);
+    });
+    const fill = $('routeFill');
+    fill.style.width = '0%';
+    requestAnimationFrame(() => { fill.style.width = (passed ? (passed - 1) / (total - 1) * 100 : 0) + '%'; });
+  }
+}
+
+/* ------------------------------ GameManager ----------------------------- */
+class Game {
+  constructor(canvas) {
+    this.input = new InputManager(canvas, () => this.state === 'playing');
+    this.canoe = new CanoeController();
+    this.spawner = new RiverSpawner();
+    this.scenery = new SceneryManager();
+    this.score = new ScoreManager();
+    this.renderer = new Renderer(canvas);
+    this.state = 'ready';
+    this.time = 0;
+    this.runTime = 0;
+    this.speed = 6;
+    this.shake = 0;
+    this.flash = 0;
+    this.overTimer = 0;
+    this.starveTimer = 0;
+    this.warned = false;
+    this.slowTimer = 0;
+    this.cheerTimer = 0;
+    this.ui = new UI(this);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.pause(); });
+    window.addEventListener('blur', () => this.pause());
+  }
+
+  start() {
+    if (this.overTimer > 0) return;
+    sfx.unlock();
+    this.canoe.reset();
+    this.spawner.reset();
+    this.score.reset();
+    this.runTime = 0;
+    this.starveTimer = 0;
+    this.slowTimer = 0;
+    this.warned = false;
+    this.speed = CONFIG.startSpeed;
+    this.state = 'playing';
+    this.ui.last = {};
+    this.ui.show('playing');
+  }
+
+  pause() {
+    if (this.state !== 'playing') return;
+    this.state = 'paused';
+    this.ui.fillPause();
+    this.ui.show('paused');
+  }
+
+  resume() {
+    if (this.state !== 'paused') return;
+    this.state = 'playing';
+    this.ui.show('playing');
+  }
+
+  toTitle() {
+    this.state = 'ready';
+    this.ui.paintBest();
+    this.ui.show('ready');
+  }
+
+  gameOver() {
+    this.state = 'over';
+    this.shake = 0.6;
+    this.flash = 0.6;
+    this.overTimer = 0.8;
+    this.score.commit();
+    if (this.score.newBest) { sfx.record(); setTimeout(() => haptics.buzz(HAPTIC.record), 700); }
+    else sfx.over();
+    this.ui.fillOver();
+    this.ui.show('over');
+    const retry = $('retryBtn');
+    retry.disabled = true;
+    setTimeout(() => { retry.disabled = false; }, 800);
+  }
+
+  nextBridge() {
+    const i = this.score.bridges;
+    return { name: BRIDGES[i % BRIDGES.length].name, left: CONFIG.firstBridge + i * CONFIG.bridgeGap - this.score.distance };
+  }
+
+  damage(kind) {
+    const c = this.canoe;
+    c.hp--;
+    c.invuln = CONFIG.invulnTime;
+    this.shake = 0.45;
+    this.flash = 0.35;
+    if (kind === 'starve') { sfx.starve(); haptics.buzz(HAPTIC.starve); }
+    else { sfx.hit(); haptics.buzz(HAPTIC.hit); }
+    if (c.hp <= 0) this.gameOver();
+  }
+
+  handleInput() {
+    for (const a of this.input.consume()) {
+      if (this.state === 'ready' || this.state === 'over') {
+        if (a === 'start' && this.overTimer <= 0) this.start();
+      } else if (this.state === 'paused') {
+        if (a === 'pause' || a === 'start') this.resume();
+      } else if (a === 'pause') {
+        this.pause();
+      } else if (a !== 'start') {
+        this.canoe.handle(a);
+      }
+    }
+  }
+
+  update(dt) {
+    this.handleInput();
+    this.time += dt;
+    this.shake = Math.max(0, this.shake - dt * 1.5);
+    this.flash = Math.max(0, this.flash - dt * 2.5);
+    if (this.overTimer > 0) this.overTimer -= dt;
+    if (this.cheerTimer > 0) this.cheerTimer -= dt;
+
+    if (this.state === 'ready' || this.state === 'over') {
+      // 타이틀 화면에서도 강이 흐르도록
+      this.score.distance += this.state === 'ready' ? 6 * dt : 0;
+      this.scenery.update(this.state === 'ready' ? 6 * dt : 0);
+      this.canoe.update(dt, 6);
+      return;
+    }
+    if (this.state !== 'playing') return;
+
+    const c = this.canoe;
+    this.runTime += dt;
+    const base = Math.min(CONFIG.maxSpeed, CONFIG.startSpeed + CONFIG.speedRamp * this.runTime);
+    const starving = c.energy <= 0;
+    if (this.slowTimer > 0) this.slowTimer -= dt;
+    this.speed = base * (1 + CONFIG.strokeBoost * c.boost) * (starving ? CONFIG.starveSpeed : 1) * (this.slowTimer > 0 ? 0.75 : 1);
+    const difficulty = (base - CONFIG.startSpeed) / (CONFIG.maxSpeed - CONFIG.startSpeed);
+    const dz = this.speed * dt;
+    this.score.distance += dz;
+
+    // 에너지: 시간이 지나면 줄고, 0이면 체력이 서서히 준다
+    c.energy = Math.max(0, c.energy - CONFIG.energyDrain * dt);
+    if (c.energy <= CONFIG.lowEnergy && !this.warned) {
+      this.warned = true;
+      haptics.buzz(HAPTIC.warn);
+      this.ui.popBanner('배고파요! 간식을 먹어요', true);
+    }
+    if (c.energy > CONFIG.lowEnergy + 8) this.warned = false;
+    if (starving) {
+      this.starveTimer += dt;
+      if (this.starveTimer >= CONFIG.starveInterval) { this.starveTimer = 0; this.damage('starve'); }
+    } else this.starveTimer = 0;
+
+    c.update(dt, this.speed);
+    this.spawner.update(dz, this.speed, difficulty, this.score.distance);
+    this.scenery.update(dz);
+    if (this.state === 'playing') this.checkCollisions();
+    if (this.state === 'playing') this.ui.updateHud();
+  }
+
+  checkCollisions() {
+    const c = this.canoe, b = c.bounds();
+    if (c.invuln <= 0) {
+      for (const o of this.spawner.obstacles) {
+        if (o.hit || o.z > b.z1 || o.z + o.d < b.z0) continue;
+        if (b.x0 < o.x + o.w / 2 && b.x1 > o.x - o.w / 2 && b.y0 < o.y1 && b.y1 > o.y0) {
+          o.hit = true;
+          this.damage('hit');
+          return;
+        }
+      }
+    }
+    for (const s of this.spawner.snacks) {
+      if (s.taken || Math.abs(s.z) > 1.2 || Math.abs(s.x - c.x) > 1.0) continue;
+      s.taken = true;
+      this.score.snacks++;
+      c.energy = Math.min(CONFIG.maxEnergy, c.energy + SNACKS[s.kind].energy);
+      this.cheerTimer = 0.9;
+      sfx.pickup();
+      haptics.buzz(HAPTIC.pickup);
+    }
+    for (const w of this.spawner.waves) {
+      if (w.hit || w.z > 0.5) continue;
+      w.hit = true;
+      c.wobble = 0.8;
+      if (c.boost < 0.2) this.slowTimer = 0.8;
+      sfx.wave();
+      haptics.buzz(40);
+    }
+    for (const br of this.spawner.bridges) {
+      if (br.passed || br.z + 2.6 > 0) continue;
+      br.passed = true;
+      this.score.bridges = br.index + 1;
+      const lap = Math.floor(br.index / BRIDGES.length);
+      this.ui.popBanner(`${br.def.name} 통과!` + (lap ? ` (${lap + 1}바퀴)` : ''));
+      this.cheerTimer = 1.6;
+      sfx.bridge();
+      haptics.buzz(HAPTIC.bridge);
+    }
+  }
+}
+
+const game = new Game(document.getElementById('game'));
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  game.update(dt);
+  game.renderer.render(game, dt);
+  requestAnimationFrame(frame);
+}
+if (document.fonts && document.fonts.load) document.fonts.load('40px Jua');
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

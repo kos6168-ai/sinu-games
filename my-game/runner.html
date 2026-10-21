@@ -1,0 +1,1062 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Lane Runner</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0d1020; overflow: hidden;
+    touch-action: none; user-select: none; -webkit-user-select: none; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+'use strict';
+
+/* =========================================================================
+ * Lane Runner — 3레인 무한 러너 (Canvas 의사 3D)
+ * 구조는 Unity 아키텍처와 1:1로 대응되도록 나눴다.
+ *   CONFIG            → GameSettings (ScriptableObject)
+ *   InputManager      → InputManager (키보드 + 스와이프 → 커맨드)
+ *   PlayerController  → PlayerController (레인 이동 / 점프 / 슬라이드)
+ *   Pool              → ObjectPool
+ *   TrackSpawner      → TrackSpawner + ObstacleSpawner (패턴 생성, 재활용)
+ *   ScoreManager      → ScoreManager (거리, 코인, 최고 기록)
+ *   Renderer          → CameraFollow + 뷰 (원근 투영, HUD, 화면 UI)
+ *   Game              → GameManager (상태 머신: ready / playing / paused / over)
+ * 좌표계: x = 좌우, y = 높이, z = 플레이어 기준 전방 거리(m). 플레이어는 z = 0에 고정되고
+ * 세계가 -z 방향으로 흘러온다 (부동소수 누적 문제 없는 "세계 이동" 방식).
+ * ========================================================================= */
+
+const CONFIG = {
+  laneWidth: 2.2,
+  camDist: 6,
+  camFollow: 0.6,
+  startSpeed: 16,
+  maxSpeed: 42,
+  speedRamp: 0.35,          // 초당 속도 증가량
+  gravity: 34,
+  jumpVelocity: 11.5,
+  airSlideVelocity: -18,    // 공중에서 슬라이드 입력 시 급강하
+  slideDuration: 0.7,
+  laneChangeSpeed: 16,
+  playerHalfWidth: 0.3,
+  playerHalfDepth: 0.35,
+  playerHeight: 1.8,
+  slideHeight: 0.8,
+  spawnDistance: 140,
+  drawDistance: 150,
+  firstRowZ: 45,
+  coinScore: 10,
+};
+
+const OBSTACLE_TYPES = {
+  low:   { w: 1.9, y0: 0,    y1: 0.9, d: 0.5 }, // 쓰러진 통나무 — 점프로 회피
+  high:  { w: 1.9, y0: 1.15, y1: 2.6, d: 0.4 }, // 덩굴 커튼 — 슬라이드로 회피
+  block: { w: 1.9, y0: 0,    y1: 2.8, d: 7   }, // 바위 기둥 — 레인 변경으로 회피
+};
+
+// 주인공 "분홍빛 나비 소녀" 일러스트 — 초상화/아바타로 사용 (로드 실패 시 초상화만 생략)
+const HERO_IMG = new Image();
+HERO_IMG.src = 'index esset/' + encodeURIComponent('분홍빛 나비 소녀.png');
+const HERO_FACE = { sx: 570, sy: 110, size: 460 }; // 원본 1254×1254에서 얼굴 영역
+const HERO_NAME = '분홍빛 나비 소녀';
+const HERO_COLORS = {
+  skin: '#f4a6b8', hair: '#7a2a3d', braid: '#d9577f',
+  top: '#5a3a4a', belt: '#c98a5a', pants: '#4a3f4f',
+};
+
+// 판도라 세계관 배경 이미지 — 지평선 뒤 원경으로 사용 (로드 실패 시 절차적 하늘로 대체)
+const BG_IMG = new Image();
+BG_IMG.src = 'index esset/' + encodeURIComponent('아바타-세게관-판도라.jpg');
+const BG_HORIZON = 0.66; // 원본 이미지에서 지평선(안개 띠)의 높이 비율
+const FOG_RGB = [207, 227, 240];
+const ISLAND_SHAPE = [[-1, 0], [1, 0], [0.8, 0.35], [0.45, 0.9], [0.15, 1.5], [-0.1, 1.1], [-0.5, 0.8], [-0.85, 0.3]];
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const laneX = lane => lane * CONFIG.laneWidth;
+
+/* ----------------------------- InputManager ----------------------------- */
+const KEYMAP = {
+  ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
+  Space: 'jump',
+  ArrowDown: 'slide', KeyS: 'slide',
+  KeyP: 'pause', Escape: 'pause', Enter: 'tap',
+};
+
+class InputManager {
+  constructor(target) {
+    this.queue = [];
+    window.addEventListener('keydown', e => {
+      const action = KEYMAP[e.code];
+      if (!action) return;
+      e.preventDefault();
+      if (!e.repeat) this.queue.push(action);
+    });
+
+    // 스와이프: 30px 이상 움직이면 즉시 커맨드 발행, 아니면 탭
+    let sx = 0, sy = 0, tracking = false;
+    target.addEventListener('touchstart', e => {
+      const t = e.changedTouches[0];
+      sx = t.clientX; sy = t.clientY; tracking = true;
+      e.preventDefault();
+    }, { passive: false });
+    target.addEventListener('touchmove', e => {
+      if (!tracking) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - sx, dy = t.clientY - sy;
+      if (Math.hypot(dx, dy) > 30) {
+        this.queue.push(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'slide' : 'jump'));
+        tracking = false;
+      }
+      e.preventDefault();
+    }, { passive: false });
+    target.addEventListener('touchend', e => {
+      if (tracking) this.queue.push('tap');
+      tracking = false;
+      e.preventDefault();
+    }, { passive: false });
+    target.addEventListener('mousedown', () => this.queue.push('tap'));
+  }
+
+  consume() {
+    const q = this.queue;
+    this.queue = [];
+    return q;
+  }
+}
+
+/* --------------------------- PlayerController --------------------------- */
+class PlayerController {
+  constructor() { this.reset(); }
+
+  reset() {
+    this.lane = 0;
+    this.x = 0;
+    this.y = 0;
+    this.vy = 0;
+    this.grounded = true;
+    this.slideTimer = 0;
+    this.runPhase = 0;
+  }
+
+  get sliding() { return this.slideTimer > 0; }
+  get height() { return this.sliding ? CONFIG.slideHeight : CONFIG.playerHeight; }
+
+  handle(action) {
+    switch (action) {
+      case 'left':  this.lane = Math.max(-1, this.lane - 1); break;
+      case 'right': this.lane = Math.min(1, this.lane + 1); break;
+      case 'jump':
+        if (this.grounded) {
+          this.vy = CONFIG.jumpVelocity;
+          this.grounded = false;
+          this.slideTimer = 0;
+        }
+        break;
+      case 'slide':
+        if (!this.grounded) this.vy = Math.min(this.vy, CONFIG.airSlideVelocity);
+        this.slideTimer = CONFIG.slideDuration;
+        break;
+    }
+  }
+
+  update(dt, speed) {
+    const targetX = laneX(this.lane);
+    const step = CONFIG.laneChangeSpeed * dt;
+    this.x = Math.abs(targetX - this.x) <= step ? targetX : this.x + Math.sign(targetX - this.x) * step;
+
+    if (!this.grounded) {
+      this.vy -= CONFIG.gravity * dt;
+      this.y += this.vy * dt;
+      if (this.y <= 0) { this.y = 0; this.vy = 0; this.grounded = true; }
+    }
+    if (this.slideTimer > 0) this.slideTimer -= dt;
+    this.runPhase += dt * (6 + speed * 0.25);
+  }
+
+  bounds() {
+    return {
+      x0: this.x - CONFIG.playerHalfWidth, x1: this.x + CONFIG.playerHalfWidth,
+      y0: this.y, y1: this.y + this.height,
+      z0: -CONFIG.playerHalfDepth, z1: CONFIG.playerHalfDepth,
+    };
+  }
+}
+
+/* ------------------------------ ObjectPool ------------------------------ */
+class Pool {
+  constructor() { this.free = []; }
+  get() { return this.free.pop() || {}; }
+  release(o) { this.free.push(o); }
+}
+
+// keep()이 false인 항목은 풀로 반환하고 나머지만 남긴다
+function recycle(list, pool, keep) {
+  const kept = [];
+  for (const item of list) {
+    if (keep(item)) kept.push(item);
+    else pool.release(item);
+  }
+  return kept;
+}
+
+/* ----------------------------- TrackSpawner ----------------------------- */
+class TrackSpawner {
+  constructor() {
+    this.obstacles = [];
+    this.coins = [];
+    this.obstaclePool = new Pool();
+    this.coinPool = new Pool();
+    this.reset();
+  }
+
+  reset() {
+    this.obstacles.forEach(o => this.obstaclePool.release(o));
+    this.coins.forEach(c => this.coinPool.release(c));
+    this.obstacles.length = 0;
+    this.coins.length = 0;
+    this.cursor = CONFIG.firstRowZ;
+  }
+
+  update(dz, speed, difficulty) {
+    const despawnZ = -CONFIG.camDist;
+    this.obstacles = recycle(this.obstacles, this.obstaclePool, o => { o.z -= dz; return o.z + o.d > despawnZ; });
+    this.coins = recycle(this.coins, this.coinPool, c => { c.z -= dz; return !c.taken && c.z > despawnZ; });
+
+    this.cursor -= dz;
+    while (this.cursor < CONFIG.spawnDistance) {
+      this.spawnRow(this.cursor, difficulty);
+      // 행 간격을 속도에 비례시켜 반응 시간을 일정 범위로 유지
+      const gap = Math.max(14, speed * (0.95 - 0.25 * difficulty + Math.random() * 0.4));
+      this.cursor += gap;
+    }
+  }
+
+  spawnRow(z, difficulty) {
+    const lanes = [-1, 0, 1].sort(() => Math.random() - 0.5);
+    const count = Math.random() < 0.3 + difficulty * 0.45 ? 2 : 1; // 항상 최소 1개 레인은 비워 둔다
+    const blocked = lanes.slice(0, count);
+    const free = lanes.slice(count);
+
+    let lowLane = null;
+    for (const lane of blocked) {
+      const r = Math.random();
+      const type = r < 0.38 ? 'low' : r < 0.7 ? 'high' : 'block';
+      const def = OBSTACLE_TYPES[type];
+      const o = this.obstaclePool.get();
+      Object.assign(o, { type, lane, x: laneX(lane), z, w: def.w, y0: def.y0, y1: def.y1, d: def.d });
+      this.obstacles.push(o);
+      if (type === 'low') lowLane = lane;
+    }
+
+    if (lowLane !== null && Math.random() < 0.45) {
+      // 낮은 장애물 위로 점프 궤적을 따라 코인 아치
+      for (let i = -3; i <= 3; i++) {
+        const t = i / 3.5;
+        this.addCoin(lowLane, z + 0.25 + i * 1.3, 0.8 + 1.3 * (1 - t * t));
+      }
+    } else if (Math.random() < 0.65) {
+      const lane = free[(Math.random() * free.length) | 0];
+      for (let i = 0; i < 5; i++) this.addCoin(lane, z + 2 + i * 1.8, 0.8);
+    }
+  }
+
+  addCoin(lane, z, y) {
+    const c = this.coinPool.get();
+    Object.assign(c, { x: laneX(lane), y, z, taken: false });
+    this.coins.push(c);
+  }
+}
+
+/* ---------------------------- SceneryManager ---------------------------- */
+// EnvironmentSpawner 대응: 트랙 양옆 판도라 정글, 부유섬, 돌 아치, 포자를 흘려보낸다 (충돌 없음)
+class SceneryManager {
+  constructor() {
+    this.items = [];
+    this.pool = new Pool();
+    this.cursor = -CONFIG.camDist;
+    this.archCooldown = 40;
+    this.update(0);
+  }
+
+  update(dz) {
+    this.items = recycle(this.items, this.pool, it => { it.z -= dz; return it.z > -CONFIG.camDist + 1; });
+    this.cursor -= dz;
+    this.archCooldown -= dz;
+    while (this.cursor < CONFIG.spawnDistance) {
+      this.spawnSlice(this.cursor);
+      this.cursor += 3.5 + Math.random() * 1.5;
+    }
+  }
+
+  add(props) {
+    const it = this.pool.get();
+    Object.assign(it, props);
+    this.items.push(it);
+  }
+
+  spawnSlice(z) {
+    const edge = 1.5 * CONFIG.laneWidth + 0.6;
+    const rand = (a, b) => a + Math.random() * (b - a);
+    for (const side of [-1, 1]) {
+      this.add({ kind: 'fern', x: side * rand(edge + 0.5, edge + 4), y: 0, z: z + rand(0, 2), size: rand(1, 2.2), seed: Math.random() });
+      if (Math.random() < 0.6) {
+        this.add({ kind: 'glow', x: side * rand(edge + 0.2, edge + 2.5), y: 0, z: z + rand(0, 3), size: rand(0.4, 1.1),
+                   hue: Math.random() < 0.6 ? 0 : 1, seed: Math.random() * 6 });
+      }
+      const r = Math.random();
+      if (r < 0.35) this.add({ kind: 'palm', x: side * rand(edge + 3, edge + 18), y: 0, z: z + rand(0, 3), size: rand(9, 16), lean: rand(-0.8, 0.8), seed: Math.random() });
+      else if (r < 0.55) this.add({ kind: 'bamboo', x: side * rand(edge + 2, edge + 8), y: 0, z, size: rand(5, 9), seed: Math.random() });
+      else if (r < 0.9) this.add({ kind: 'canopy', x: side * rand(edge + 7, edge + 26), y: 0, z: z + rand(0, 3), size: rand(5, 9), seed: Math.random() });
+    }
+    if (Math.random() < 0.07) {
+      this.add({ kind: 'island', x: (Math.random() < 0.5 ? -1 : 1) * rand(14, 40), y: rand(13, 26), z: z + 10, size: rand(3, 8), seed: Math.random() });
+    }
+    if (this.archCooldown <= 0 && z > 60 && Math.random() < 0.04) {
+      this.add({ kind: 'arch', x: 0, y: 0, z, size: 1, seed: 0 });
+      this.archCooldown = 120;
+    }
+    this.add({ kind: 'spore', x: rand(-9, 9), y: rand(0.6, 5), z: z + rand(0, 4), size: 1, seed: Math.random() * 6 });
+  }
+}
+
+/* ----------------------------- ScoreManager ----------------------------- */
+class ScoreManager {
+  constructor() {
+    this.best = 0;
+    try { this.best = Number(localStorage.getItem('laneRunnerBest')) || 0; } catch (e) {}
+    this.reset();
+  }
+  reset() { this.distance = 0; this.coins = 0; this.newBest = false; }
+  get score() { return Math.floor(this.distance) + this.coins * CONFIG.coinScore; }
+  commit() {
+    if (this.score > this.best) {
+      this.best = this.score;
+      this.newBest = true;
+      try { localStorage.setItem('laneRunnerBest', String(this.best)); } catch (e) {}
+    }
+  }
+}
+
+/* ------------------------------- Renderer ------------------------------- */
+class Renderer {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.camX = 0;
+    this.shakeX = 0;
+    this.shakeY = 0;
+    this.shadeCache = new Map();
+    this.mountains = [0, 1].map(layer =>
+      Array.from({ length: 24 }, () => 0.3 + Math.random() * 0.7 * (layer ? 0.6 : 1)));
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+  }
+
+  resize() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    this.W = window.innerWidth;
+    this.H = window.innerHeight;
+    this.canvas.width = Math.round(this.W * dpr);
+    this.canvas.height = Math.round(this.H * dpr);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // 세로 화면에서는 카메라를 높여 트랙이 더 많이 보이게 한다
+    this.camH = this.H > this.W ? 5.5 : 3.4;
+    this.scale0 = Math.min(this.W * 0.92 / (3 * CONFIG.laneWidth + 0.6), this.H / 8.5);
+    this.horizon = this.H * 0.84 - this.camH * this.scale0;
+    this.cx = this.W / 2;
+  }
+
+  project(x, y, z) {
+    const s = this.scale0 * CONFIG.camDist / (z + CONFIG.camDist);
+    return [this.cx + (x - this.camX) * s + this.shakeX, this.horizon + (this.camH - y) * s + this.shakeY, s];
+  }
+
+  shade(hex, f, z = 0) {
+    // z가 멀수록 FOG_RGB 쪽으로 섞어 대기 원근감을 준다
+    const q = Math.round(clamp(z / CONFIG.drawDistance, 0, 1) * 16);
+    const key = hex + f + '|' + q;
+    let c = this.shadeCache.get(key);
+    if (!c) {
+      const n = parseInt(hex.slice(1), 16);
+      const t = Math.pow(q / 16, 0.8) * 0.8;
+      const ch = (v, fog) => (Math.min(255, v * f) * (1 - t) + fog * t) | 0;
+      c = `rgb(${ch((n >> 16) & 255, FOG_RGB[0])},${ch((n >> 8) & 255, FOG_RGB[1])},${ch(n & 255, FOG_RGB[2])})`;
+      this.shadeCache.set(key, c);
+    }
+    return c;
+  }
+
+  poly(pts, fill) {
+    const ctx = this.ctx;
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+
+  // 축 정렬 박스: 보이는 면(윗면, 옆면, 앞면)만 그린다
+  box(x, w, y0, y1, z0, z1, color) {
+    const near = -CONFIG.camDist + 0.4;
+    if (z1 <= near) return;
+    z0 = Math.max(z0, near);
+    const xl = x - w / 2, xr = x + w / 2;
+    const f = [this.project(xl, y0, z0), this.project(xr, y0, z0), this.project(xr, y1, z0), this.project(xl, y1, z0)];
+    const b = [this.project(xl, y0, z1), this.project(xr, y0, z1), this.project(xr, y1, z1), this.project(xl, y1, z1)];
+    if (y1 < this.camH) this.poly([f[3], f[2], b[2], b[3]], this.shade(color, 1.3, z0));
+    if (xl > this.camX) this.poly([f[0], f[3], b[3], b[0]], this.shade(color, 0.65, z0));
+    if (xr < this.camX) this.poly([f[1], f[2], b[2], b[1]], this.shade(color, 0.65, z0));
+    this.poly(f, this.shade(color, 1, z0));
+  }
+
+  render(game, dt) {
+    const ctx = this.ctx;
+    const p = game.player;
+    this.camX += (p.x * CONFIG.camFollow - this.camX) * Math.min(1, dt * 8);
+    this.shakeX = (Math.random() - 0.5) * game.shake * 24;
+    this.shakeY = (Math.random() - 0.5) * game.shake * 24;
+
+    this.drawSky();
+    this.drawTrack(game.score.distance);
+
+    // 페인터 알고리즘: 먼 것부터
+    const items = [];
+    for (const o of game.spawner.obstacles) items.push({ key: o.z + o.d, draw: () => this.drawObstacle(o) });
+    for (const c of game.spawner.coins) items.push({ key: c.z, draw: () => this.drawCoin(c, game.time) });
+    for (const s of game.scenery.items) items.push({ key: s.z, draw: () => this.drawScenery(s, game.time) });
+    items.push({ key: CONFIG.playerHalfDepth, draw: () => this.drawPlayer(p) });
+    items.sort((a, b) => b.key - a.key);
+    for (const it of items) {
+      ctx.globalAlpha = clamp((CONFIG.drawDistance - it.key) / 30, 0, 1);
+      it.draw();
+    }
+    ctx.globalAlpha = 1;
+    this.drawLightRays(game.time);
+
+    if (game.flash > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${game.flash})`;
+      ctx.fillRect(0, 0, this.W, this.H);
+    }
+    this.drawHUD(game);
+    this.drawOverlay(game);
+  }
+
+  drawSky() {
+    const ctx = this.ctx, W = this.W, hz = this.horizon;
+
+    if (BG_IMG.complete && BG_IMG.naturalWidth) {
+      // 원본 이미지의 지평선을 화면 지평선에 맞추고 화면을 덮도록 확대
+      const iw = BG_IMG.naturalWidth, ih = BG_IMG.naturalHeight;
+      const k = Math.max(W * 1.15 / iw, (hz + 2) / (ih * BG_HORIZON));
+      const dw = iw * k;
+      const dx = clamp((W - dw) / 2 - this.camX * 6, W - dw, 0);
+      ctx.drawImage(BG_IMG, dx, hz - ih * BG_HORIZON * k, dw, ih * k);
+    } else {
+      const g = ctx.createLinearGradient(0, 0, 0, hz);
+      g.addColorStop(0, '#3d86d6');
+      g.addColorStop(1, '#cfe6f5');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, hz + 2);
+
+      const pr = Math.min(W, this.H) * 0.16;
+      ctx.fillStyle = 'rgba(214,234,248,0.8)';
+      ctx.beginPath();
+      ctx.arc(W * 0.3 - this.camX * 3, hz * 0.45, pr, 0, Math.PI * 2);
+      ctx.fill();
+
+      const colors = ['#8fb0c8', '#6f90a8'];
+      this.mountains.forEach((peaks, layer) => {
+        const span = W * 1.6, step = span / (peaks.length - 1);
+        const offset = -W * 0.3 - this.camX * (6 + layer * 6);
+        const amp = this.H * (layer ? 0.08 : 0.12);
+        ctx.beginPath();
+        ctx.moveTo(offset, hz + 1);
+        peaks.forEach((h, i) => ctx.lineTo(offset + i * step, hz - h * amp));
+        ctx.lineTo(offset + span, hz + 1);
+        ctx.closePath();
+        ctx.fillStyle = colors[layer];
+        ctx.fill();
+      });
+    }
+
+    const mist = ctx.createLinearGradient(0, hz - this.H * 0.06, 0, hz + 2);
+    mist.addColorStop(0, 'rgba(207,227,240,0)');
+    mist.addColorStop(1, 'rgba(207,227,240,0.7)');
+    ctx.fillStyle = mist;
+    ctx.fillRect(0, hz - this.H * 0.06, W, this.H * 0.06 + 2);
+  }
+
+  drawLightRays(time) {
+    const ctx = this.ctx, W = this.W, H = this.H;
+    ctx.fillStyle = 'rgba(255,255,225,0.05)';
+    for (let i = 0; i < 4; i++) {
+      const x = W * (0.12 + i * 0.13) + Math.sin(time * 0.2 + i) * 20;
+      ctx.beginPath();
+      ctx.moveTo(x, -10);
+      ctx.lineTo(x + W * 0.04, -10);
+      ctx.lineTo(x + W * 0.28, H);
+      ctx.lineTo(x + W * 0.16, H);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  drawTrack(distance) {
+    const ctx = this.ctx;
+    ctx.fillStyle = '#4d7360';
+    ctx.fillRect(0, this.horizon, this.W, this.H - this.horizon);
+
+    const seg = 4, half = 1.5 * CONFIG.laneWidth + 0.3;
+    const off = distance % (seg * 2);
+    const nearZ = -CONFIG.camDist + 0.6;
+    const P = (x, y, z) => this.project(x, y, z);
+    for (let i = Math.ceil(CONFIG.drawDistance / seg) + 1; i >= -2; i--) {
+      let z0 = i * seg - off;
+      const z1 = z0 + seg;
+      if (z1 <= nearZ) continue;
+      z0 = Math.max(z0, nearZ);
+      const even = (i & 1) === 0;
+      const quad = (xa, xb, color, za = z0, zb = z1) =>
+        this.poly([P(xa, 0, za), P(xb, 0, za), P(xb, 0, zb), P(xa, 0, zb)], this.shade(color, 1, za));
+
+      quad(-90, -half, even ? '#2f5a2c' : '#2a5127');
+      quad(half, 90, even ? '#2f5a2c' : '#2a5127');
+      quad(-half, half, even ? '#7a7d68' : '#70735f');
+      quad(-half - 0.4, -half, even ? '#4c7f36' : '#558c3c');
+      quad(half, half + 0.4, even ? '#4c7f36' : '#558c3c');
+      if (even) {
+        // 레인 구분: 발광 이끼 점
+        const zm = (z0 + z1) / 2;
+        for (const lx of [-CONFIG.laneWidth / 2, CONFIG.laneWidth / 2]) quad(lx - 0.08, lx + 0.08, '#8ff6ff', zm - 0.4, zm + 0.4);
+      }
+    }
+
+    // 지평선 안개
+    const fog = ctx.createLinearGradient(0, this.horizon, 0, this.horizon + this.H * 0.08);
+    fog.addColorStop(0, 'rgba(207,227,240,0.85)');
+    fog.addColorStop(1, 'rgba(207,227,240,0)');
+    ctx.fillStyle = fog;
+    ctx.fillRect(0, this.horizon, this.W, this.H * 0.08);
+  }
+
+  drawObstacle(o) {
+    const z0 = o.z, z1 = o.z + o.d;
+    if (o.type === 'low') {
+      // 바위 받침 위 쓰러진 이끼 통나무
+      this.box(o.x - 0.6, 0.35, 0, 0.25, z0 + 0.05, z1 - 0.05, '#6f7a73');
+      this.box(o.x + 0.6, 0.35, 0, 0.25, z0 + 0.05, z1 - 0.05, '#6f7a73');
+      this.box(o.x, o.w, 0.2, o.y1, z0, z1, '#6b4a2e');
+      this.box(o.x, o.w * 0.96, 0.45, 0.55, z0 - 0.01, z0, '#8a6440');
+      this.box(o.x, o.w * 0.9, o.y1 - 0.08, o.y1 + 0.04, z0 + 0.04, z1 - 0.04, '#5c8f3a');
+    } else if (o.type === 'high') {
+      // 두 나무 기둥 사이에 드리운 덩굴 커튼
+      const leg = o.w / 2 - 0.1;
+      this.box(o.x - leg, 0.22, 0, o.y1, z0, z1, '#5d4a33');
+      this.box(o.x + leg, 0.22, 0, o.y1, z0, z1, '#5d4a33');
+      this.box(o.x, o.w, o.y1 - 0.4, o.y1, z0, z1, '#5d4a33');
+      for (let i = 0; i < 8; i++) {
+        const vx = o.x - leg + 0.2 + i * (2 * leg - 0.4) / 7;
+        const bottom = o.y0 + (i % 3) * 0.08;
+        this.box(vx, 0.09, bottom, o.y1 - 0.4, z0 + 0.1, z0 + 0.19, '#4c8a3a');
+        this.box(vx, 0.16, bottom, bottom + 0.14, z0 + 0.08, z0 + 0.21, i % 2 ? '#ff7fd0' : '#7ff3ff');
+      }
+    } else {
+      // 이끼 덮인 바위 기둥 + 발광 반점
+      this.box(o.x, o.w, 0, o.y1, z0, z1, '#6f7a73');
+      this.box(o.x, o.w * 1.03, 1.1, 1.3, z0 - 0.02, z1, '#5c8f3a');
+      this.box(o.x, o.w * 1.04, o.y1 - 0.3, o.y1 + 0.05, z0 - 0.03, z1, '#4f8a3a');
+      for (const [gx, gy] of [[-0.5, 0.5], [0.35, 0.8], [0.6, 1.8], [-0.3, 2.1]]) {
+        this.box(o.x + gx, 0.16, gy, gy + 0.16, z0 - 0.03, z0, '#7ff3ff');
+      }
+    }
+  }
+
+  leaf(x0, y0, x1, y1, w, color) {
+    const ctx = this.ctx;
+    const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len * w, ny = dx / len * w;
+    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.quadraticCurveTo(mx + nx, my + ny, x1, y1);
+    ctx.quadraticCurveTo(mx - nx, my - ny, x0, y0);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  line(x0, y0, x1, y1, width, color) {
+    const ctx = this.ctx;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+  }
+
+  drawScenery(it, time) {
+    const [bx, by, s] = this.project(it.x, 0, it.z);
+    if (it.kind !== 'arch' && it.kind !== 'island' && (bx < -this.W || bx > this.W * 2)) return;
+    const col = (hex, f = 1) => this.shade(hex, f, it.z);
+    const ctx = this.ctx;
+
+    switch (it.kind) {
+      case 'fern': {
+        const L = it.size * s;
+        for (let i = 0; i < 6; i++) {
+          const a = -Math.PI / 2 + (i / 5 - 0.5) * 2.6 + (it.seed - 0.5) * 0.4;
+          const tx = bx + Math.cos(a) * L;
+          const ty = by + Math.sin(a) * L * 0.75 + Math.abs(Math.cos(a)) * L * 0.25;
+          this.leaf(bx, by, tx, ty, L * 0.16, col(i % 2 ? '#3e7a35' : '#4f9440'));
+        }
+        break;
+      }
+      case 'glow': {
+        const [tx, ty] = this.project(it.x, it.size, it.z);
+        this.line(bx, by, tx, ty, Math.max(1, 0.05 * s), col('#2f5a3a'));
+        const pulse = 0.75 + 0.25 * Math.sin(time * 2 + it.seed);
+        const rgb = it.hue ? '255,127,208' : '127,243,255';
+        ctx.fillStyle = `rgba(${rgb},${0.25 * pulse})`;
+        ctx.beginPath();
+        ctx.arc(tx, ty, Math.max(2, 0.4 * s), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = `rgba(${rgb},0.95)`;
+        ctx.beginPath();
+        ctx.arc(tx, ty, Math.max(1, 0.13 * s), 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case 'palm': {
+        const [tx, ty, ts] = this.project(it.x + it.lean, it.size, it.z);
+        this.poly([[bx - 0.2 * s, by], [bx + 0.2 * s, by], [tx + 0.1 * ts, ty], [tx - 0.1 * ts, ty]], col('#6a6448'));
+        const L = 2.8 * ts;
+        for (let i = 0; i < 9; i++) {
+          const a = i / 9 * Math.PI * 2 + it.seed * 3;
+          this.leaf(tx, ty, tx + Math.cos(a) * L, ty + Math.sin(a) * L * 0.4 + L * 0.35, L * 0.13, col(i % 2 ? '#3f7a32' : '#335f2a'));
+        }
+        break;
+      }
+      case 'bamboo': {
+        const [tx, ty] = this.project(it.x, it.size, it.z);
+        this.line(bx, by, tx, ty, Math.max(1.5, 0.22 * s), col('#7c9a3a'));
+        for (let k = 1; k <= 5; k++) {
+          const [qx, qy, qs] = this.project(it.x, it.size * k / 5.3, it.z);
+          const side = k % 2 ? 1 : -1;
+          this.leaf(qx, qy, qx + side * 1.7 * qs, qy + 0.3 * qs, 0.4 * qs, col(k % 2 ? '#5f9e35' : '#4f8a2e'));
+        }
+        break;
+      }
+      case 'canopy': {
+        const [tx, ty, ts] = this.project(it.x, it.size * 0.75, it.z);
+        this.poly([[bx - 0.3 * s, by], [bx + 0.3 * s, by], [tx + 0.2 * ts, ty], [tx - 0.2 * ts, ty]], col('#4a3f30'));
+        const r = it.size * 0.32 * ts;
+        [[-0.9, 0.1, 1], [0.9, 0.1, 1], [0, -0.5, 1.2], [0, 0.2, 1.1]].forEach(([ox, oy, sc], i) => {
+          ctx.fillStyle = col(i % 2 ? '#2f5f2a' : '#3b7032');
+          ctx.beginPath();
+          ctx.ellipse(tx + ox * r, ty + oy * r, r * sc, r * sc * 0.8, 0, 0, Math.PI * 2);
+          ctx.fill();
+          // 햇빛 받는 윗면 하이라이트로 입체감
+          ctx.fillStyle = col('#5a9a46');
+          ctx.beginPath();
+          ctx.ellipse(tx + (ox - 0.25) * r, ty + (oy - 0.3) * r, r * sc * 0.55, r * sc * 0.35, 0, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        for (const ox of [-0.8, 0.1, 0.7]) this.line(tx + ox * r, ty + 0.6 * r, tx + ox * r, ty + 2 * r, Math.max(1, 0.05 * ts), col('#2f5f2a'));
+        break;
+      }
+      case 'island': {
+        const [cx, cy0, is] = this.project(it.x, it.y, it.z);
+        const cy = cy0 + Math.sin(time * 0.5 + it.seed * 6) * 0.3 * is;
+        const w = it.size * is;
+        const pt = ([dx, dy]) => [cx + dx * w, cy + dy * w];
+        if (it.seed > 0.5) {
+          ctx.fillStyle = 'rgba(235,245,255,0.55)';
+          ctx.fillRect(cx + 0.5 * w, cy, w * 0.1, w * 2.2);
+        }
+        this.poly(ISLAND_SHAPE.map(pt), col('#7d8580'));
+        this.poly([[0, 0], [1, 0], [0.8, 0.35], [0.45, 0.9], [0.15, 1.5]].map(pt), col('#5f6762'));
+        for (let i = 0; i < 6; i++) {
+          const vx = cx + (-0.7 + i * 0.28) * w;
+          this.line(vx, cy + 0.1 * w, vx, cy + (0.4 + 0.5 * Math.abs(Math.sin(i * 12.9 + it.seed * 7))) * w, Math.max(1, 0.04 * w), col('#3e6b33'));
+        }
+        ctx.fillStyle = col('#4a7d3a');
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, w * 1.05, w * 0.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = col('#3b6a30');
+        for (const o of [-0.5, 0.1, 0.55]) {
+          ctx.beginPath();
+          ctx.ellipse(cx + o * w, cy - 0.15 * w, 0.25 * w, 0.18 * w, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break;
+      }
+      case 'arch': {
+        // 트랙 위를 가로지르는 이끼 낀 돌 아치 (앞/뒤 링)
+        const near = -CONFIG.camDist + 0.8;
+        const z1 = it.z + 1.6;
+        if (z1 <= near) break;
+        const z0 = Math.max(it.z, near);
+        const ring = (z, color) => {
+          const pts = [];
+          for (let i = 0; i <= 20; i++) { const t = Math.PI * i / 20; pts.push(this.project(Math.cos(t) * 6.8, Math.sin(t) * 9.5, z)); }
+          for (let i = 20; i >= 0; i--) { const t = Math.PI * i / 20; pts.push(this.project(Math.cos(t) * 5.4, Math.sin(t) * 8.1, z)); }
+          this.poly(pts, color);
+        };
+        ring(z1, this.shade('#5c625a', 1, z1));
+        ring(z0, this.shade('#8a8f86', 1, z0));
+        const [, , s0] = this.project(0, 0, z0);
+        ctx.strokeStyle = this.shade('#4f8a3a', 1, z0);
+        ctx.lineWidth = 0.35 * s0;
+        ctx.beginPath();
+        for (let i = 0; i <= 12; i++) {
+          const t = Math.PI * (0.2 + 0.6 * i / 12);
+          const [px, py] = this.project(Math.cos(t) * 6.7, Math.sin(t) * 9.4, z0);
+          if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+        }
+        ctx.stroke();
+        for (const f of [0.3, 0.38, 0.47, 0.55, 0.63, 0.72]) {
+          const t = Math.PI * f, vx = Math.cos(t) * 5.4, vy = Math.sin(t) * 8.1;
+          const [x0, y0] = this.project(vx, vy, z0);
+          const [x1, y1] = this.project(vx, vy - 1.5 - Math.abs(Math.sin(f * 40)) * 2, z0);
+          this.line(x0, y0, x1, y1, Math.max(1, 0.08 * s0), this.shade('#3e6b33', 1, z0));
+        }
+        break;
+      }
+      case 'spore': {
+        const [px, py, ps] = this.project(it.x + Math.sin(time * 0.7 + it.seed) * 0.3, it.y + Math.sin(time * 1.5 + it.seed) * 0.3, it.z);
+        const r = Math.max(1, 0.05 * ps);
+        ctx.fillStyle = 'rgba(220,255,240,0.2)';
+        ctx.beginPath();
+        ctx.arc(px, py, r * 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(235,255,245,0.9)';
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+    }
+  }
+
+  drawCoin(c, time) {
+    if (c.z < -CONFIG.camDist + 0.6) return;
+    const ctx = this.ctx;
+    const [x, y, s] = this.project(c.x, c.y + Math.sin(time * 4 + c.z) * 0.08, c.z);
+    const r = 0.32 * s;
+    const sx = Math.max(0.15, Math.abs(Math.cos(time * 5 + c.z * 0.3)));
+    ctx.fillStyle = '#e0a800';
+    ctx.beginPath();
+    ctx.ellipse(x, y, r * sx, r, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffd84a';
+    ctx.beginPath();
+    ctx.ellipse(x, y, r * sx * 0.7, r * 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  drawPlayer(p) {
+    const ctx = this.ctx;
+    const [sx, sy, s] = this.project(p.x, 0, 0);
+    const shrink = 1 / (1 + p.y * 0.35);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, 0.55 * s * shrink, 0.2 * s * shrink, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const C = HERO_COLORS;
+    const y = p.y;
+    const wag = Math.sin(p.runPhase * 0.5);
+    if (p.sliding) {
+      this.box(p.x, 0.7, y, y + 0.4, -0.7, 0.1, C.pants);
+      this.box(p.x, 0.75, y + 0.1, y + 0.6, -0.2, 0.45, C.top);
+      this.box(p.x, 0.5, y + 0.15, y + 0.6, 0.45, 0.85, C.hair);
+      this.drawWings(p.x, y + 0.6, -0.1, 0.45);
+      this.drawTail(p.x, y + 0.3, -0.6, wag);
+      return;
+    }
+
+    const swing = p.grounded ? Math.sin(p.runPhase) * 0.3 : 0.15;
+    const lift = p.grounded ? 0 : 0.2;
+    const legs = [[-0.18, swing], [0.18, -swing]].sort((a, b) => b[1] - a[1]);
+    for (const [lx, lz] of legs) this.box(p.x + lx, 0.24, y + lift, y + 0.75, lz - 0.12, lz + 0.12, C.pants);
+    const arms = [[-0.5, -swing], [0.5, swing]].sort((a, b) => b[1] - a[1]);
+    for (const [ax, az] of arms) this.box(p.x + ax, 0.17, y + 0.85, y + 1.35, az - 0.09, az + 0.09, C.skin);
+    this.box(p.x, 0.72, y + 0.7, y + 1.4, -0.18, 0.18, C.top);
+    this.box(p.x, 0.76, y + 0.7, y + 0.82, -0.19, 0.19, C.belt);
+    this.box(p.x, 0.5, y + 1.42, y + 1.88, -0.2, 0.2, C.hair);
+
+    // 뾰족한 귀
+    for (const side of [-1, 1]) {
+      this.poly([
+        this.project(p.x + side * 0.25, y + 1.72, 0),
+        this.project(p.x + side * 0.25, y + 1.56, 0),
+        this.project(p.x + side * 0.58, y + 1.9, 0.05),
+      ], C.skin);
+    }
+
+    // 등 뒤로 늘어진 땋은 머리
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(1, 0.07 * s);
+    [-0.18, -0.06, 0.06, 0.18].forEach((ox, i) => {
+      const sway = Math.sin(p.runPhase + i) * 0.06 + (p.grounded ? 0 : 0.1 * Math.sign(ox));
+      const [x0, y0] = this.project(p.x + ox, y + 1.78, -0.21);
+      const [x1, y1] = this.project(p.x + ox * 1.3 + sway, y + 1.0, -0.3);
+      ctx.strokeStyle = i % 2 ? C.braid : C.hair;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
+    });
+
+    const spread = p.grounded ? 0.85 + 0.12 * Math.sin(p.runPhase * 2) : 1.25 + 0.15 * Math.sin(p.runPhase * 3);
+    this.drawWings(p.x, y + 1.2, -0.25, spread);
+    this.drawTail(p.x, y + 0.75, -0.2, wag);
+  }
+
+  // 나비 날개: 등 중앙에서 좌우 대칭으로 위·아래 두 장씩
+  drawWings(x, y, z, spread) {
+    const ctx = this.ctx;
+    const [ax, ay, s] = this.project(x, y, z);
+    const grad = ctx.createRadialGradient(ax, ay, 0, ax, ay, s * 1.1);
+    grad.addColorStop(0, 'rgba(255,214,232,0.9)');
+    grad.addColorStop(0.55, 'rgba(240,120,180,0.75)');
+    grad.addColorStop(1, 'rgba(150,90,210,0.65)');
+    ctx.fillStyle = grad;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(ax + side * 0.5 * s * spread, ay - 0.32 * s, 0.55 * s * spread, 0.36 * s, side * -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(ax + side * 0.36 * s * spread, ay + 0.22 * s, 0.34 * s * spread, 0.22 * s, side * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // 분홍 꼬리: 엉덩이에서 카메라 쪽으로 휘어 올라감
+  drawTail(x, y, z, wag) {
+    const ctx = this.ctx;
+    const [x0, y0, s] = this.project(x, y, z);
+    const [cx, cy] = this.project(x + wag * 0.3, y - 0.45, z - 0.6);
+    const [x1, y1] = this.project(x + wag * 0.6, y + 0.15, z - 0.9);
+    ctx.strokeStyle = HERO_COLORS.skin;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(2, 0.12 * s);
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.quadraticCurveTo(cx, cy, x1, y1);
+    ctx.stroke();
+    ctx.fillStyle = HERO_COLORS.braid;
+    ctx.beginPath();
+    ctx.arc(x1, y1, 0.11 * s, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  drawPortrait(cx, cy, r) {
+    const ctx = this.ctx;
+    if (!HERO_IMG.complete || !HERO_IMG.naturalWidth) return false;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    const f = HERO_FACE;
+    ctx.drawImage(HERO_IMG, f.sx, f.sy, f.size, f.size, cx - r, cy - r, r * 2, r * 2);
+    ctx.restore();
+    ctx.strokeStyle = '#f7a8c8';
+    ctx.lineWidth = Math.max(2, r * 0.08);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    return true;
+  }
+
+  drawHUD(game) {
+    if (game.state === 'ready') return;
+    const ctx = this.ctx, sc = game.score;
+    const tx = this.drawPortrait(40, 40, 24) ? 74 : 16;
+    ctx.textBaseline = 'top';
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 6;
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left';
+    ctx.font = '800 28px system-ui, sans-serif';
+    ctx.fillText(sc.score.toLocaleString(), tx, 14);
+    ctx.font = '600 13px system-ui, sans-serif';
+    ctx.fillStyle = '#c9cbe0';
+    ctx.fillText(`최고 ${sc.best.toLocaleString()}  ·  ${Math.round(game.speed * 3.6)} km/h`, tx, 48);
+
+    ctx.textAlign = 'right';
+    ctx.font = '800 24px system-ui, sans-serif';
+    ctx.fillStyle = '#ffd84a';
+    ctx.fillText(`● ${sc.coins}`, this.W - 16, 16);
+    ctx.shadowBlur = 0;
+  }
+
+  drawOverlay(game) {
+    if (game.state === 'playing') return;
+    const ctx = this.ctx, W = this.W, H = this.H;
+    ctx.fillStyle = 'rgba(10,12,30,0.55)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    const big = Math.min(56, W / 8);
+    const touch = 'ontouchstart' in window;
+    const lines = [];
+    const r = Math.min(W, H) * 0.11;
+    const pcy = H * 0.2;
+    const hasPortrait = game.state !== 'paused' && this.drawPortrait(W / 2, pcy, r);
+    const titleY = hasPortrait ? pcy + r + big * 0.75 : H * 0.3;
+    ctx.fillStyle = '#ffffff';
+
+    if (game.state === 'ready') {
+      ctx.font = `900 ${big}px system-ui, sans-serif`;
+      ctx.fillText('LANE RUNNER', W / 2, titleY);
+      lines.push(`주인공: ${HERO_NAME}`, '',
+                 touch ? '좌우 스와이프: 레인 이동' : '← → / A D : 레인 이동',
+                 touch ? '위로 스와이프: 점프' : 'Space : 점프',
+                 touch ? '아래로 스와이프: 슬라이드' : '↓ / S : 슬라이드',
+                 '', touch ? '탭해서 시작' : 'Space 또는 클릭으로 시작');
+    } else if (game.state === 'paused') {
+      ctx.font = `900 ${big}px system-ui, sans-serif`;
+      ctx.fillText('일시정지', W / 2, H * 0.38);
+      lines.push(touch ? '탭해서 계속' : 'P 또는 클릭으로 계속');
+    } else {
+      ctx.font = `900 ${big}px system-ui, sans-serif`;
+      ctx.fillText('GAME OVER', W / 2, titleY);
+      ctx.font = `800 ${big * 0.7}px system-ui, sans-serif`;
+      ctx.fillStyle = game.score.newBest ? '#ffd84a' : '#ffffff';
+      ctx.fillText(game.score.score.toLocaleString(), W / 2, titleY + big);
+      ctx.fillStyle = '#ffffff';
+      lines.push(game.score.newBest ? '신기록!' : `최고 기록 ${game.score.best.toLocaleString()}`,
+                 `거리 ${Math.floor(game.score.distance)}m · 코인 ${game.score.coins}`, '');
+      if (game.overTimer <= 0) lines.push(touch ? '탭해서 다시 시작' : 'Space 또는 클릭으로 다시 시작');
+    }
+
+    ctx.font = '600 16px system-ui, sans-serif';
+    const startY = game.state === 'over' ? titleY + big * 1.8 : titleY + big;
+    lines.forEach((t, i) => {
+      ctx.fillStyle = i === lines.length - 1 ? '#ffd84a' : '#d8daf0';
+      ctx.fillText(t, W / 2, startY + i * 26);
+    });
+  }
+}
+
+/* ------------------------------ GameManager ----------------------------- */
+class Game {
+  constructor(canvas) {
+    this.input = new InputManager(canvas);
+    this.player = new PlayerController();
+    this.spawner = new TrackSpawner();
+    this.scenery = new SceneryManager();
+    this.score = new ScoreManager();
+    this.renderer = new Renderer(canvas);
+    this.state = 'ready';
+    this.time = 0;
+    this.runTime = 0;
+    this.speed = 6;
+    this.shake = 0;
+    this.flash = 0;
+    this.overTimer = 0;
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.pause(); });
+    window.addEventListener('blur', () => this.pause());
+  }
+
+  start() {
+    this.player.reset();
+    this.spawner.reset();
+    this.score.reset();
+    this.runTime = 0;
+    this.speed = CONFIG.startSpeed;
+    this.state = 'playing';
+  }
+
+  pause() { if (this.state === 'playing') this.state = 'paused'; }
+
+  gameOver() {
+    this.state = 'over';
+    this.shake = 0.6;
+    this.flash = 0.8;
+    this.overTimer = 0.7;
+    this.score.commit();
+  }
+
+  handleInput() {
+    for (const a of this.input.consume()) {
+      if (this.state === 'ready' || this.state === 'over') {
+        if ((a === 'tap' || a === 'jump') && this.overTimer <= 0) this.start();
+      } else if (this.state === 'paused') {
+        if (a === 'tap' || a === 'pause' || a === 'jump') this.state = 'playing';
+      } else if (a === 'pause') {
+        this.pause();
+      } else if (a !== 'tap') {
+        this.player.handle(a);
+      }
+    }
+  }
+
+  update(dt) {
+    this.handleInput();
+    this.time += dt;
+    this.shake = Math.max(0, this.shake - dt * 1.5);
+    this.flash = Math.max(0, this.flash - dt * 2.5);
+    if (this.overTimer > 0) this.overTimer -= dt;
+
+    if (this.state === 'ready') {
+      this.score.distance += 6 * dt; // 타이틀 화면에서도 트랙이 흐르도록
+      this.scenery.update(6 * dt);
+      this.player.update(dt, 6);
+      return;
+    }
+    if (this.state !== 'playing') return;
+
+    this.runTime += dt;
+    this.speed = Math.min(CONFIG.maxSpeed, CONFIG.startSpeed + CONFIG.speedRamp * this.runTime);
+    const difficulty = (this.speed - CONFIG.startSpeed) / (CONFIG.maxSpeed - CONFIG.startSpeed);
+    const dz = this.speed * dt;
+    this.score.distance += dz;
+    this.player.update(dt, this.speed);
+    this.spawner.update(dz, this.speed, difficulty);
+    this.scenery.update(dz);
+    this.checkCollisions();
+  }
+
+  checkCollisions() {
+    const b = this.player.bounds();
+    for (const o of this.spawner.obstacles) {
+      if (o.z > b.z1 || o.z + o.d < b.z0) continue;
+      if (b.x0 < o.x + o.w / 2 && b.x1 > o.x - o.w / 2 && b.y0 < o.y1 && b.y1 > o.y0) {
+        this.gameOver();
+        return;
+      }
+    }
+    for (const c of this.spawner.coins) {
+      if (c.taken || Math.abs(c.z) > 0.8 || Math.abs(c.x - this.player.x) > 0.9) continue;
+      if (c.y > b.y0 - 0.3 && c.y < b.y1 + 0.3) {
+        c.taken = true;
+        this.score.coins++;
+      }
+    }
+  }
+}
+
+const game = new Game(document.getElementById('game'));
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  game.update(dt);
+  game.renderer.render(game, dt);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
