@@ -1,0 +1,279 @@
+{
+  "rules": {
+    "vs": {
+      "open": {
+        ".read": "auth != null",
+        "$mode": {
+          "$rid": {
+            ".write": "auth != null && (!newData.exists() || (root.child('vs/rooms/'+$rid+'/host').val() === auth.uid && (($mode !== 'r1v1' && $mode !== 'r2v2') || auth != null && auth.token.firebase.sign_in_provider !== 'anonymous' && root.child('users/'+auth.uid+'/terms').exists())))",
+            ".validate": "($mode === '1v1' || $mode === '2v2' || $mode === 'ffa' || $mode === 'r1v1' || $mode === 'r2v2') && newData.child('t').val() === now"
+          },
+          ".indexOn": [
+            "t"
+          ]
+        }
+      },
+      "codes": {
+        "$code": {
+          ".read": "auth != null",
+          ".write": "auth != null && (!newData.exists() || !data.exists())",
+          ".validate": "$code.matches(/^[0-9]{4}$/) && newData.isString() && newData.val().matches(/^-[A-Za-z0-9_-]{19}$/)"
+        }
+      },
+      "rooms": {
+        ".read": "auth != null",
+        ".indexOn": [
+          "t0"
+        ],
+        "$rid": {
+          ".read": "auth != null",
+          ".write": "auth != null && ((!data.exists() && newData.child('state').val() === 'wait' && newData.child('host').val() === auth.uid && newData.child('t0').val() === now && newData.child('seats/0/uid').val() === auth.uid && !newData.hasChild('seats/1') && !newData.hasChild('seats/2') && !newData.hasChild('seats/3') && !newData.hasChild('go') && !newData.hasChild('ai') && !newData.hasChild('result') && (newData.child('ranked').val() !== true || (auth != null && auth.token.firebase.sign_in_provider !== 'anonymous' && root.child('users/'+auth.uid+'/terms').exists() && newData.child('mode').val() !== 'ffa' && !newData.hasChild('ai'))) && (newData.child('ranked').val() !== true || !newData.hasChild('seats/0') || newData.child('seats/0/uid').val() !== auth.uid || (newData.child('seats/0/tier').val() === (root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/tier').exists() ? root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/tier').val() : 0) && newData.child('seats/0/rp').val() === (root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/rp').exists() ? root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/rp').val() : 0)))) || (data.child('state').val() === 'wait' && newData.child('state').val() === 'wait' && newData.child('mode').val() === data.child('mode').val() && newData.child('code').val() === data.child('code').val() && newData.child('t0').val() === data.child('t0').val() && newData.child('host').val() === data.child('host').val() && newData.child('ranked').val() === data.child('ranked').val() && newData.child('pub').val() === data.child('pub').val() && !newData.hasChild('go') && !newData.hasChild('ai') && !newData.hasChild('result') && (newData.child('seats/0/uid').val() === data.child('seats/0/uid').val() && newData.child('seats/0/name').val() === data.child('seats/0/name').val() && newData.child('seats/0/char').val() === data.child('seats/0/char').val() && newData.child('seats/0/ready').val() === data.child('seats/0/ready').val() && newData.child('seats/0/tier').val() === data.child('seats/0/tier').val() && newData.child('seats/0/rp').val() === data.child('seats/0/rp').val() && newData.child('seats/0/lv').val() === data.child('seats/0/lv').val() || ((!newData.hasChild('seats/0') || newData.child('seats/0/uid').val() === auth.uid) && (!data.hasChild('seats/0') || data.child('seats/0/uid').val() === auth.uid))) && (newData.child('seats/1/uid').val() === data.child('seats/1/uid').val() && newData.child('seats/1/name').val() === data.child('seats/1/name').val() && newData.child('seats/1/char').val() === data.child('seats/1/char').val() && newData.child('seats/1/ready').val() === data.child('seats/1/ready').val() && newData.child('seats/1/tier').val() === data.child('seats/1/tier').val() && newData.child('seats/1/rp').val() === data.child('seats/1/rp').val() && newData.child('seats/1/lv').val() === data.child('seats/1/lv').val() || ((!newData.hasChild('seats/1') || newData.child('seats/1/uid').val() === auth.uid) && (!data.hasChild('seats/1') || data.child('seats/1/uid').val() === auth.uid))) && (newData.child('seats/2/uid').val() === data.child('seats/2/uid').val() && newData.child('seats/2/name').val() === data.child('seats/2/name').val() && newData.child('seats/2/char').val() === data.child('seats/2/char').val() && newData.child('seats/2/ready').val() === data.child('seats/2/ready').val() && newData.child('seats/2/tier').val() === data.child('seats/2/tier').val() && newData.child('seats/2/rp').val() === data.child('seats/2/rp').val() && newData.child('seats/2/lv').val() === data.child('seats/2/lv').val() || ((!newData.hasChild('seats/2') || newData.child('seats/2/uid').val() === auth.uid) && (!data.hasChild('seats/2') || data.child('seats/2/uid').val() === auth.uid))) && (newData.child('seats/3/uid').val() === data.child('seats/3/uid').val() && newData.child('seats/3/name').val() === data.child('seats/3/name').val() && newData.child('seats/3/char').val() === data.child('seats/3/char').val() && newData.child('seats/3/ready').val() === data.child('seats/3/ready').val() && newData.child('seats/3/tier').val() === data.child('seats/3/tier').val() && newData.child('seats/3/rp').val() === data.child('seats/3/rp').val() && newData.child('seats/3/lv').val() === data.child('seats/3/lv').val() || ((!newData.hasChild('seats/3') || newData.child('seats/3/uid').val() === auth.uid) && (!data.hasChild('seats/3') || data.child('seats/3/uid').val() === auth.uid))) && (newData.child('ranked').val() !== true || !newData.hasChild('seats/0') || newData.child('seats/0/uid').val() !== auth.uid || (newData.child('seats/0/tier').val() === (root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/tier').exists() ? root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/tier').val() : 0) && newData.child('seats/0/rp').val() === (root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/rp').exists() ? root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/rp').val() : 0))) && (newData.child('ranked').val() !== true || !newData.hasChild('seats/1') || newData.child('seats/1/uid').val() !== auth.uid || (newData.child('seats/1/tier').val() === (root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/tier').exists() ? root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/tier').val() : 0) && newData.child('seats/1/rp').val() === (root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/rp').exists() ? root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/rp').val() : 0))) && (newData.child('ranked').val() !== true || !newData.hasChild('seats/2') || newData.child('seats/2/uid').val() !== auth.uid || (newData.child('seats/2/tier').val() === (root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/tier').exists() ? root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/tier').val() : 0) && newData.child('seats/2/rp').val() === (root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/rp').exists() ? root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/rp').val() : 0))) && (newData.child('ranked').val() !== true || !newData.hasChild('seats/3') || newData.child('seats/3/uid').val() !== auth.uid || (newData.child('seats/3/tier').val() === (root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/tier').exists() ? root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/tier').val() : 0) && newData.child('seats/3/rp').val() === (root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/rp').exists() ? root.child('rank/'+newData.child('mode').val()+'/'+auth.uid+'/rp').val() : 0))) && (newData.child('ranked').val() !== true || auth != null && auth.token.firebase.sign_in_provider !== 'anonymous' && root.child('users/'+auth.uid+'/terms').exists())) || (data.child('state').val() === 'wait' && newData.child('state').val() === 'play' && newData.child('mode').val() === data.child('mode').val() && newData.child('code').val() === data.child('code').val() && newData.child('t0').val() === data.child('t0').val() && newData.child('host').val() === data.child('host').val() && newData.child('ranked').val() === data.child('ranked').val() && newData.child('pub').val() === data.child('pub').val() && newData.child('seats/0/uid').val() === data.child('seats/0/uid').val() && newData.child('seats/0/name').val() === data.child('seats/0/name').val() && newData.child('seats/0/char').val() === data.child('seats/0/char').val() && newData.child('seats/0/ready').val() === data.child('seats/0/ready').val() && newData.child('seats/0/tier').val() === data.child('seats/0/tier').val() && newData.child('seats/0/rp').val() === data.child('seats/0/rp').val() && newData.child('seats/0/lv').val() === data.child('seats/0/lv').val() && newData.child('seats/1/uid').val() === data.child('seats/1/uid').val() && newData.child('seats/1/name').val() === data.child('seats/1/name').val() && newData.child('seats/1/char').val() === data.child('seats/1/char').val() && newData.child('seats/1/ready').val() === data.child('seats/1/ready').val() && newData.child('seats/1/tier').val() === data.child('seats/1/tier').val() && newData.child('seats/1/rp').val() === data.child('seats/1/rp').val() && newData.child('seats/1/lv').val() === data.child('seats/1/lv').val() && newData.child('seats/2/uid').val() === data.child('seats/2/uid').val() && newData.child('seats/2/name').val() === data.child('seats/2/name').val() && newData.child('seats/2/char').val() === data.child('seats/2/char').val() && newData.child('seats/2/ready').val() === data.child('seats/2/ready').val() && newData.child('seats/2/tier').val() === data.child('seats/2/tier').val() && newData.child('seats/2/rp').val() === data.child('seats/2/rp').val() && newData.child('seats/2/lv').val() === data.child('seats/2/lv').val() && newData.child('seats/3/uid').val() === data.child('seats/3/uid').val() && newData.child('seats/3/name').val() === data.child('seats/3/name').val() && newData.child('seats/3/char').val() === data.child('seats/3/char').val() && newData.child('seats/3/ready').val() === data.child('seats/3/ready').val() && newData.child('seats/3/tier').val() === data.child('seats/3/tier').val() && newData.child('seats/3/rp').val() === data.child('seats/3/rp').val() && newData.child('seats/3/lv').val() === data.child('seats/3/lv').val() && (data.child('seats/0/uid').val() === auth.uid || data.child('seats/1/uid').val() === auth.uid || data.child('seats/2/uid').val() === auth.uid || data.child('seats/3/uid').val() === auth.uid) && newData.child('go').val() === now && newData.child('seed').isNumber() && newData.child('authSeat').isNumber() && !newData.hasChild('result') && !(newData.hasChild('ai/0') && newData.hasChild('seats/0')) && !(newData.hasChild('ai/1') && newData.hasChild('seats/1')) && !(newData.hasChild('ai/2') && newData.hasChild('seats/2')) && !(newData.hasChild('ai/3') && newData.hasChild('seats/3')) && ((!data.hasChild('seats/0') || data.child('seats/0/ready').val() === true) && (!data.hasChild('seats/1') || data.child('seats/1/ready').val() === true) && (!data.hasChild('seats/2') || data.child('seats/2/ready').val() === true) && (!data.hasChild('seats/3') || data.child('seats/3/ready').val() === true) || now >= data.child('t0').val() + 57000) && (newData.child('ranked').val() !== true || (auth != null && auth.token.firebase.sign_in_provider !== 'anonymous' && root.child('users/'+auth.uid+'/terms').exists() && !newData.hasChild('ai') && ((newData.child('mode').val() === '1v1' && newData.hasChild('seats/0') && newData.hasChild('seats/1')) || (newData.child('mode').val() === '2v2' && newData.hasChild('seats/0') && newData.hasChild('seats/1') && newData.hasChild('seats/2') && newData.hasChild('seats/3')))))) || (data.child('state').val() === 'play' && newData.child('state').val() === 'play' && newData.child('mode').val() === data.child('mode').val() && newData.child('code').val() === data.child('code').val() && newData.child('t0').val() === data.child('t0').val() && newData.child('host').val() === data.child('host').val() && newData.child('ranked').val() === data.child('ranked').val() && newData.child('pub').val() === data.child('pub').val() && newData.child('seats/0/uid').val() === data.child('seats/0/uid').val() && newData.child('seats/0/name').val() === data.child('seats/0/name').val() && newData.child('seats/0/char').val() === data.child('seats/0/char').val() && newData.child('seats/0/ready').val() === data.child('seats/0/ready').val() && newData.child('seats/0/tier').val() === data.child('seats/0/tier').val() && newData.child('seats/0/rp').val() === data.child('seats/0/rp').val() && newData.child('seats/0/lv').val() === data.child('seats/0/lv').val() && newData.child('seats/1/uid').val() === data.child('seats/1/uid').val() && newData.child('seats/1/name').val() === data.child('seats/1/name').val() && newData.child('seats/1/char').val() === data.child('seats/1/char').val() && newData.child('seats/1/ready').val() === data.child('seats/1/ready').val() && newData.child('seats/1/tier').val() === data.child('seats/1/tier').val() && newData.child('seats/1/rp').val() === data.child('seats/1/rp').val() && newData.child('seats/1/lv').val() === data.child('seats/1/lv').val() && newData.child('seats/2/uid').val() === data.child('seats/2/uid').val() && newData.child('seats/2/name').val() === data.child('seats/2/name').val() && newData.child('seats/2/char').val() === data.child('seats/2/char').val() && newData.child('seats/2/ready').val() === data.child('seats/2/ready').val() && newData.child('seats/2/tier').val() === data.child('seats/2/tier').val() && newData.child('seats/2/rp').val() === data.child('seats/2/rp').val() && newData.child('seats/2/lv').val() === data.child('seats/2/lv').val() && newData.child('seats/3/uid').val() === data.child('seats/3/uid').val() && newData.child('seats/3/name').val() === data.child('seats/3/name').val() && newData.child('seats/3/char').val() === data.child('seats/3/char').val() && newData.child('seats/3/ready').val() === data.child('seats/3/ready').val() && newData.child('seats/3/tier').val() === data.child('seats/3/tier').val() && newData.child('seats/3/rp').val() === data.child('seats/3/rp').val() && newData.child('seats/3/lv').val() === data.child('seats/3/lv').val() && newData.child('go').val() === data.child('go').val() && newData.child('seed').val() === data.child('seed').val() && newData.child('authSeat').val() === data.child('authSeat').val() && !data.hasChild('result') && newData.child('result/at').val() === now && newData.child('result/by').isString() && data.child('seats/'+newData.child('result/by').val()+'/uid').val() === auth.uid && newData.child('result/team').isNumber() && newData.child('result/team').val() >= -1 && newData.child('result/team').val() <= 2 && ((newData.child('result/why').val() === 'done' && now >= data.child('go').val() + 120000) || (newData.child('result/why').val() === 'time' && now >= data.child('go').val() + (data.child('mode').val() === '2v2' ? 410000 : 350000)))) || (data.child('state').val() === 'play' && newData.child('state').val() === 'done' && newData.child('mode').val() === data.child('mode').val() && newData.child('code').val() === data.child('code').val() && newData.child('t0').val() === data.child('t0').val() && newData.child('host').val() === data.child('host').val() && newData.child('ranked').val() === data.child('ranked').val() && newData.child('pub').val() === data.child('pub').val() && newData.child('seats/0/uid').val() === data.child('seats/0/uid').val() && newData.child('seats/0/name').val() === data.child('seats/0/name').val() && newData.child('seats/0/char').val() === data.child('seats/0/char').val() && newData.child('seats/0/ready').val() === data.child('seats/0/ready').val() && newData.child('seats/0/tier').val() === data.child('seats/0/tier').val() && newData.child('seats/0/rp').val() === data.child('seats/0/rp').val() && newData.child('seats/0/lv').val() === data.child('seats/0/lv').val() && newData.child('seats/1/uid').val() === data.child('seats/1/uid').val() && newData.child('seats/1/name').val() === data.child('seats/1/name').val() && newData.child('seats/1/char').val() === data.child('seats/1/char').val() && newData.child('seats/1/ready').val() === data.child('seats/1/ready').val() && newData.child('seats/1/tier').val() === data.child('seats/1/tier').val() && newData.child('seats/1/rp').val() === data.child('seats/1/rp').val() && newData.child('seats/1/lv').val() === data.child('seats/1/lv').val() && newData.child('seats/2/uid').val() === data.child('seats/2/uid').val() && newData.child('seats/2/name').val() === data.child('seats/2/name').val() && newData.child('seats/2/char').val() === data.child('seats/2/char').val() && newData.child('seats/2/ready').val() === data.child('seats/2/ready').val() && newData.child('seats/2/tier').val() === data.child('seats/2/tier').val() && newData.child('seats/2/rp').val() === data.child('seats/2/rp').val() && newData.child('seats/2/lv').val() === data.child('seats/2/lv').val() && newData.child('seats/3/uid').val() === data.child('seats/3/uid').val() && newData.child('seats/3/name').val() === data.child('seats/3/name').val() && newData.child('seats/3/char').val() === data.child('seats/3/char').val() && newData.child('seats/3/ready').val() === data.child('seats/3/ready').val() && newData.child('seats/3/tier').val() === data.child('seats/3/tier').val() && newData.child('seats/3/rp').val() === data.child('seats/3/rp').val() && newData.child('seats/3/lv').val() === data.child('seats/3/lv').val() && newData.child('go').val() === data.child('go').val() && newData.child('seed').val() === data.child('seed').val() && newData.child('authSeat').val() === data.child('authSeat').val() && data.hasChild('result') && newData.child('result/at').val() === data.child('result/at').val() && newData.child('result/by').val() === data.child('result/by').val() && newData.child('result/team').val() === data.child('result/team').val() && newData.child('result/why').val() === data.child('result/why').val()) || (!newData.exists() && ((data.child('state').val() === 'wait' && (!data.hasChild('seats/0') || data.child('seats/0/uid').val() === auth.uid) && (!data.hasChild('seats/1') || data.child('seats/1/uid').val() === auth.uid) && (!data.hasChild('seats/2') || data.child('seats/2/uid').val() === auth.uid) && (!data.hasChild('seats/3') || data.child('seats/3/uid').val() === auth.uid)) || (data.hasChild('result') && now >= data.child('result/at').val() + 120000) || now >= data.child('t0').val() + 840000)))",
+          ".validate": "newData.hasChildren(['mode','code','t0','state','host'])",
+          "mode": {
+            ".validate": "newData.val() === '1v1' || newData.val() === '2v2' || newData.val() === 'ffa'"
+          },
+          "code": {
+            ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}$/)"
+          },
+          "state": {
+            ".validate": "newData.val() === 'wait' || newData.val() === 'play' || newData.val() === 'done'"
+          },
+          "t0": {
+            ".validate": "newData.isNumber()"
+          },
+          "host": {
+            ".validate": "newData.isString() && newData.val().length <= 128"
+          },
+          "pub": {
+            ".validate": "newData.isBoolean()"
+          },
+          "ranked": {
+            ".validate": "newData.isBoolean()"
+          },
+          "go": {
+            ".validate": "newData.isNumber()"
+          },
+          "seed": {
+            ".validate": "newData.isNumber()"
+          },
+          "authSeat": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "seats": {
+            "$i": {
+              ".validate": "$i.matches(/^[0-3]$/) && newData.hasChildren(['uid','name','char'])",
+              "uid": {
+                ".validate": "newData.isString() && newData.val().length <= 128"
+              },
+              "name": {
+                ".validate": "newData.isString() && newData.val().length <= 24"
+              },
+              "char": {
+                ".validate": "newData.isString() && newData.val().length <= 12"
+              },
+              "ready": {
+                ".validate": "newData.isBoolean()"
+              },
+              "tier": {
+                ".validate": "newData.isNumber() && newData.val() >= 0"
+              },
+              "rp": {
+                ".validate": "newData.isNumber() && newData.val() >= 0"
+              },
+              "lv": {
+                ".validate": "newData.isNumber() && newData.val() >= 1"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "ai": {
+            "$i": {
+              ".validate": "$i.matches(/^[0-3]$/)",
+              "char": {
+                ".validate": "newData.isString() && newData.val().length <= 12"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "result": {
+            ".validate": "newData.hasChildren(['team','why','at','by'])",
+            "team": {
+              ".validate": "newData.isNumber()"
+            },
+            "why": {
+              ".validate": "newData.isString() && newData.val().length <= 8"
+            },
+            "at": {
+              ".validate": "newData.isNumber()"
+            },
+            "by": {
+              ".validate": "newData.isString() && newData.val().matches(/^[0-3]$/)"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "games": {
+        "$rid": {
+          ".read": "auth != null",
+          ".write": "auth != null && !newData.exists()",
+          "p": {
+            "$seat": {
+              ".write": "auth != null",
+              ".validate": "$seat.matches(/^[0-3]$/)"
+            }
+          },
+          "ev": {
+            "$e": {
+              ".write": "auth != null && !data.exists()",
+              ".validate": "newData.hasChildren(['f','to','k'])"
+            }
+          }
+        }
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && (auth.token.firebase.sign_in_provider !== 'anonymous' || !newData.exists())",
+        ".validate": "newData.hasChildren(['terms','at'])",
+        "terms": {
+          ".validate": "newData.isString() && newData.val().length <= 20"
+        },
+        "at": {
+          ".validate": "newData.isNumber()"
+        },
+        "name": {
+          ".validate": "newData.isString() && newData.val().length <= 40"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "rank": {
+      "profile": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.token.firebase.sign_in_provider !== 'anonymous' && root.child('users/'+auth.uid+'/terms').exists() && auth.uid === $uid && (!newData.exists() || (newData.child('at').val() === now && (!data.exists() || now - data.child('at').val() >= 60000) && newData.child('nick').isString() && newData.child('nick').val().matches(/^[가-힣A-Za-z0-9]{2,10}$/) && root.child('rank/nicks/'+newData.child('nick').val()).val() === auth.uid))",
+          ".validate": "newData.hasChildren(['nick','at'])",
+          "nick": {
+            ".validate": "newData.isString()"
+          },
+          "at": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "nicks": {
+        "$nick": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.token.firebase.sign_in_provider !== 'anonymous' && root.child('users/'+auth.uid+'/terms').exists() && ((!data.exists() && newData.val() === auth.uid) || (data.val() === auth.uid && !newData.exists()))",
+          ".validate": "$nick.matches(/^[가-힣A-Za-z0-9]{2,10}$/) && newData.isString()"
+        }
+      },
+      "meta": {
+        "$mode": {
+          ".read": "auth != null",
+          "changedAt": {
+            ".write": "auth != null && auth.token.firebase.sign_in_provider !== 'anonymous' && root.child('users/'+auth.uid+'/terms').exists() && ($mode === '1v1' || $mode === '2v2') && newData.val() === now && (!data.exists() || now - data.val() >= 5000) && ((root.child('rank/'+$mode+'/'+auth.uid+'/at').exists() && now - root.child('rank/'+$mode+'/'+auth.uid+'/at').val() < 60000) || (root.child('rank/'+$mode+'/'+auth.uid+'/tat').exists() && now - root.child('rank/'+$mode+'/'+auth.uid+'/tat').val() < 60000) || (root.child('rank/profile/'+auth.uid+'/at').exists() && now - root.child('rank/profile/'+auth.uid+'/at').val() < 60000))"
+          },
+          "snap": {
+            ".write": "auth != null && auth.token.firebase.sign_in_provider !== 'anonymous' && root.child('users/'+auth.uid+'/terms').exists() && ($mode === '1v1' || $mode === '2v2') && newData.child('day').val() === (((now + 3600000) - (now + 3600000) % 86400000) / 86400000) && (!data.exists() || data.child('day').val() < (((now + 3600000) - (now + 3600000) % 86400000) / 86400000))",
+            ".validate": "newData.hasChildren(['day'])",
+            "day": {
+              ".validate": "newData.isNumber()"
+            },
+            "prev": {
+              "$u": {
+                ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 10 && root.child('rank/'+$mode+'/'+$u).exists()"
+              }
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "$mode": {
+        ".read": "auth != null && ($mode === '1v1' || $mode === '2v2') && ((query.orderByChild === 'rp' && query.limitToLast <= 10) || (auth != null && auth.token.firebase.sign_in_provider !== 'anonymous' && root.child('users/'+auth.uid+'/terms').exists() && (query.orderByChild === 'tier' || query.orderByChild === 'ptk')))",
+        ".indexOn": [
+          "rp",
+          "tier",
+          "ptk"
+        ],
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.token.firebase.sign_in_provider !== 'anonymous' && root.child('users/'+auth.uid+'/terms').exists() && auth.uid === $uid && ($mode === '1v1' || $mode === '2v2') && (!newData.exists() || (newData.child('at').val() === now && newData.child('games').val() === (data.child('games').exists() ? data.child('games').val() : 0) + 1 && newData.child('games').val() === newData.child('w').val() + newData.child('l').val() && newData.child('nick').isString() && newData.child('nick').val() === root.child('rank/profile/'+auth.uid+'/nick').val() && newData.child('last').isString() && newData.child('seat').isString() && root.child('vs/rooms/'+newData.child('last').val()).child('ranked').val() === true && root.child('vs/rooms/'+newData.child('last').val()).child('mode').val() === $mode && root.child('vs/rooms/'+newData.child('last').val()).child('result/team').val() >= 0 && now - root.child('vs/rooms/'+newData.child('last').val()).child('result/at').val() < 600000 && root.child('vs/rooms/'+newData.child('last').val()).child('go').val() > (data.child('at').exists() ? data.child('at').val() : 0) && root.child('vs/rooms/'+newData.child('last').val()).child('seats/'+newData.child('seat').val()+'/uid').val() === auth.uid && !root.child('vs/rooms/'+newData.child('last').val()).hasChild('ai') && root.child('vs/rooms/'+newData.child('last').val()).hasChild('seats/0') && root.child('vs/rooms/'+newData.child('last').val()).hasChild('seats/1') && ($mode === '1v1' || (root.child('vs/rooms/'+newData.child('last').val()).hasChild('seats/2') && root.child('vs/rooms/'+newData.child('last').val()).hasChild('seats/3'))) && newData.child('tier').val() === (data.child('tier').exists() ? data.child('tier').val() : 0) && newData.child('tp').val() === (data.child('tp').exists() ? data.child('tp').val() : 0) && newData.child('ptk').val() === (data.child('ptk').exists() ? data.child('ptk').val() : 0) && newData.child('tat').val() === (data.child('tat').exists() ? data.child('tat').val() : 0) && newData.child('sk').val() === (((now + 262800000) - (now + 262800000) % 604800000) / 604800000) && ((($mode === '1v1' ? (newData.child('seat').val() === '0' ? 0 : 1) : ((newData.child('seat').val() === '0' || newData.child('seat').val() === '1') ? 0 : 1)) === root.child('vs/rooms/'+newData.child('last').val()).child('result/team').val() && newData.child('rp').val() === (data.child('rp').exists() ? data.child('rp').val() : 0) + (20 + 2*($mode === '1v1' ? (newData.child('seat').val() === '0' ? 2*(root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val()-root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()) : 2*(root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()-root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val())) : ((newData.child('seat').val() === '0' || newData.child('seat').val() === '1') ? (root.child('vs/rooms/'+newData.child('last').val()).child('seats/2/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/3/tier').val())-(root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val()) : (root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val())-(root.child('vs/rooms/'+newData.child('last').val()).child('seats/2/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/3/tier').val())))) && newData.child('total').val() === (data.child('total').exists() ? data.child('total').val() : 0) + (20 + 2*($mode === '1v1' ? (newData.child('seat').val() === '0' ? 2*(root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val()-root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()) : 2*(root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()-root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val())) : ((newData.child('seat').val() === '0' || newData.child('seat').val() === '1') ? (root.child('vs/rooms/'+newData.child('last').val()).child('seats/2/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/3/tier').val())-(root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val()) : (root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val())-(root.child('vs/rooms/'+newData.child('last').val()).child('seats/2/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/3/tier').val())))) && newData.child('w').val() === (data.child('w').exists() ? data.child('w').val() : 0) + 1 && newData.child('l').val() === (data.child('l').exists() ? data.child('l').val() : 0) && newData.child('sp').val() === ((data.child('sk').exists() ? data.child('sk').val() : 0) === (((now + 262800000) - (now + 262800000) % 604800000) / 604800000) ? (data.child('sp').exists() ? data.child('sp').val() : 0) : 0) + (20 + 2*($mode === '1v1' ? (newData.child('seat').val() === '0' ? 2*(root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val()-root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()) : 2*(root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()-root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val())) : ((newData.child('seat').val() === '0' || newData.child('seat').val() === '1') ? (root.child('vs/rooms/'+newData.child('last').val()).child('seats/2/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/3/tier').val())-(root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val()) : (root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val())-(root.child('vs/rooms/'+newData.child('last').val()).child('seats/2/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/3/tier').val()))))) || (($mode === '1v1' ? (newData.child('seat').val() === '0' ? 0 : 1) : ((newData.child('seat').val() === '0' || newData.child('seat').val() === '1') ? 0 : 1)) !== root.child('vs/rooms/'+newData.child('last').val()).child('result/team').val() && newData.child('rp').val() === ((data.child('rp').exists() ? data.child('rp').val() : 0) - (10 - ($mode === '1v1' ? (newData.child('seat').val() === '0' ? 2*(root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val()-root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()) : 2*(root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()-root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val())) : ((newData.child('seat').val() === '0' || newData.child('seat').val() === '1') ? (root.child('vs/rooms/'+newData.child('last').val()).child('seats/2/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/3/tier').val())-(root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val()) : (root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val())-(root.child('vs/rooms/'+newData.child('last').val()).child('seats/2/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/3/tier').val())))) < 0 ? 0 : (data.child('rp').exists() ? data.child('rp').val() : 0) - (10 - ($mode === '1v1' ? (newData.child('seat').val() === '0' ? 2*(root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val()-root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()) : 2*(root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()-root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val())) : ((newData.child('seat').val() === '0' || newData.child('seat').val() === '1') ? (root.child('vs/rooms/'+newData.child('last').val()).child('seats/2/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/3/tier').val())-(root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val()) : (root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val())-(root.child('vs/rooms/'+newData.child('last').val()).child('seats/2/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/3/tier').val()))))) && newData.child('total').val() === (data.child('total').exists() ? data.child('total').val() : 0) && newData.child('l').val() === (data.child('l').exists() ? data.child('l').val() : 0) + 1 && newData.child('w').val() === (data.child('w').exists() ? data.child('w').val() : 0) && newData.child('sp').val() === (((data.child('sk').exists() ? data.child('sk').val() : 0) === (((now + 262800000) - (now + 262800000) % 604800000) / 604800000) ? (data.child('sp').exists() ? data.child('sp').val() : 0) : 0) - (10 - ($mode === '1v1' ? (newData.child('seat').val() === '0' ? 2*(root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val()-root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()) : 2*(root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()-root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val())) : ((newData.child('seat').val() === '0' || newData.child('seat').val() === '1') ? (root.child('vs/rooms/'+newData.child('last').val()).child('seats/2/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/3/tier').val())-(root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val()) : (root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val())-(root.child('vs/rooms/'+newData.child('last').val()).child('seats/2/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/3/tier').val())))) < 0 ? 0 : ((data.child('sk').exists() ? data.child('sk').val() : 0) === (((now + 262800000) - (now + 262800000) % 604800000) / 604800000) ? (data.child('sp').exists() ? data.child('sp').val() : 0) : 0) - (10 - ($mode === '1v1' ? (newData.child('seat').val() === '0' ? 2*(root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val()-root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()) : 2*(root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()-root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val())) : ((newData.child('seat').val() === '0' || newData.child('seat').val() === '1') ? (root.child('vs/rooms/'+newData.child('last').val()).child('seats/2/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/3/tier').val())-(root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val()) : (root.child('vs/rooms/'+newData.child('last').val()).child('seats/0/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/1/tier').val())-(root.child('vs/rooms/'+newData.child('last').val()).child('seats/2/tier').val()+root.child('vs/rooms/'+newData.child('last').val()).child('seats/3/tier').val())))))))) || (data.exists() && newData.child('nick').isString() && newData.child('nick').val() === root.child('rank/profile/'+auth.uid+'/nick').val() && newData.child('rp').val() === data.child('rp').val() && newData.child('total').val() === data.child('total').val() && newData.child('games').val() === data.child('games').val() && newData.child('w').val() === data.child('w').val() && newData.child('l').val() === data.child('l').val() && newData.child('at').val() === data.child('at').val() && newData.child('last').val() === data.child('last').val() && newData.child('seat').val() === data.child('seat').val() && newData.child('tier').val() === data.child('tier').val() && newData.child('tp').val() === data.child('tp').val() && newData.child('ptk').val() === data.child('ptk').val() && newData.child('tat').val() === data.child('tat').val() && newData.child('sp').val() === data.child('sp').val() && newData.child('sk').val() === data.child('sk').val()) || (data.exists() && data.child('games').val() >= 5 && newData.child('tp').val() === (((now + 262800000) - (now + 262800000) % 604800000) / 604800000) && (data.child('tp').exists() ? data.child('tp').val() : 0) < (((now + 262800000) - (now + 262800000) % 604800000) / 604800000) && newData.child('ptk').val() === (data.child('tier').exists() ? data.child('tier').val() : 0) && newData.child('tat').val() === now && newData.child('tier').isNumber() && newData.child('tier').val() >= 0 && newData.child('tier').val() <= 4 && newData.child('tier').val() - (data.child('tier').exists() ? data.child('tier').val() : 0) <= 1 && newData.child('tier').val() - (data.child('tier').exists() ? data.child('tier').val() : 0) >= -1 && (newData.child('tier').val() <= (data.child('tier').exists() ? data.child('tier').val() : 0) || (data.child('sk').exists() ? data.child('sk').val() : 0) === (((now + 262800000) - (now + 262800000) % 604800000) / 604800000) - 1) && newData.child('nick').val() === data.child('nick').val() && newData.child('rp').val() === data.child('rp').val() && newData.child('total').val() === data.child('total').val() && newData.child('games').val() === data.child('games').val() && newData.child('w').val() === data.child('w').val() && newData.child('l').val() === data.child('l').val() && newData.child('at').val() === data.child('at').val() && newData.child('last').val() === data.child('last').val() && newData.child('seat').val() === data.child('seat').val() && newData.child('sp').val() === data.child('sp').val() && newData.child('sk').val() === data.child('sk').val()))",
+          ".validate": "newData.hasChildren(['nick','rp','total','games','w','l','at','sp','sk','tier','tp'])",
+          "nick": {
+            ".validate": "newData.isString() && newData.val().length <= 10"
+          },
+          "rp": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "total": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "games": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "w": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "l": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "at": {
+            ".validate": "newData.isNumber()"
+          },
+          "last": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "seat": {
+            ".validate": "newData.isString() && newData.val().matches(/^[0-3]$/)"
+          },
+          "tier": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "tp": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "ptk": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "tat": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "sp": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "sk": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "lv": {
+            ".validate": "newData.isNumber() && newData.val() >= 1"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    }
+  }
+}

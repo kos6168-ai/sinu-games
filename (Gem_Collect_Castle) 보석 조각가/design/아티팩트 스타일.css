@@ -1,0 +1,156 @@
+/* 보석궁전(Gem Tetris Castle) 스타일 — 원본: claude.ai 프로토타입 아티팩트 */
+:root{
+  --bg:#e9ebf5; --surface:#ffffff; --surface-2:#dfe2f0; --text:#1b1a33; --muted:#5d5f7d;
+  --gold:#a8741a; --gold-soft:#e8c77a; --line:rgba(27,26,51,.12);
+  --sky-top:#bcd0f0; --sky-bot:#f3e4d4; --board:#17143a; --btn:#ffffff; --btn-text:#1b1a33; --lock:#b9bcd0;
+  color-scheme:light; box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  padding-left:env(safe-area-inset-left,0px); padding-right:env(safe-area-inset-right,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f0d22; --surface:#1a1736; --surface-2:#252148; --text:#ece9fb; --muted:#a29fc4;
+    --gold:#e2b65a; --gold-soft:#6e5521; --line:rgba(236,233,251,.12);
+    --sky-top:#141238; --sky-bot:#3a2446; --board:#120f2c; --btn:#252148; --btn-text:#ece9fb; --lock:#4a4670;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f0d22; --surface:#1a1736; --surface-2:#252148; --text:#ece9fb; --muted:#a29fc4;
+  --gold:#e2b65a; --gold-soft:#6e5521; --line:rgba(236,233,251,.12);
+  --sky-top:#141238; --sky-bot:#3a2446; --board:#120f2c; --btn:#252148; --btn-text:#ece9fb; --lock:#4a4670;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{height:100%;margin:0;background:var(--bg);color:var(--text);
+  font-family:"Noto Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;
+  overscroll-behavior:none;touch-action:manipulation;-webkit-touch-callout:none}
+.app{height:100%;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:10px;padding:10px 16px 8px}
+.brand{font-family:"Cinzel","Gowun Batang",Georgia,serif;font-weight:800;font-size:1.35rem;letter-spacing:.04em;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.brand span{color:var(--gold)}
+.spacer{flex:1}
+.hbtn{font:inherit;font-size:.82rem;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--btn);color:var(--btn-text);cursor:pointer;
+  white-space:nowrap;flex:none;display:inline-flex;align-items:center;justify-content:center}
+.hbtn .ico{display:none;width:18px;height:18px}
+.hbtn svg,.touch svg{fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.touch svg{width:26px;height:26px}
+@media (pointer:coarse){.hbtn{min-height:44px;min-width:44px}}
+.hbtn:hover{border-color:var(--gold)}
+button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.play{flex:1;min-height:0;display:flex;gap:14px;padding:0 14px 14px}
+.left{display:flex;gap:12px;min-height:0;align-items:flex-start}
+#boardBox{position:relative;flex:none;border-radius:12px;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(226,182,90,.45),0 0 0 5px var(--board),0 0 0 6px rgba(226,182,90,.35);margin:6px}
+#board{display:block}
+.side{width:156px;display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.card h3{margin:0 0 6px;font-family:"Gowun Batang",Georgia,serif;font-size:.9rem;font-weight:700;color:var(--gold)}
+#nextCv{display:block;margin:0 auto}
+.stat{display:flex;justify-content:space-between;font-size:.82rem;color:var(--muted);line-height:1.75}
+.stat b{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
+.stat b.warn{color:#e0455f}
+.pool{display:flex;flex-direction:column;gap:4px}
+.pool-item{display:flex;align-items:center;gap:8px;font-size:.8rem}
+.pool-item canvas{flex:none}
+.pool-item.special span{color:var(--muted)}
+.goals{font-size:.76rem;color:var(--muted);line-height:1.7}
+.goals .ok{color:var(--gold);font-weight:700}
+.keys{font-size:.74rem;color:var(--muted);line-height:1.7}
+.keys kbd{font-family:inherit;font-size:.7rem;padding:0 5px;border:1px solid var(--line);border-radius:4px;background:var(--surface-2);color:var(--text)}
+.right{flex:1;min-width:0;position:relative;border-radius:16px;overflow:hidden;background:linear-gradient(180deg,var(--sky-top) 0%,var(--sky-bot) 100%)}
+#three{position:absolute;inset:0;touch-action:none;cursor:grab}
+#three:active{cursor:grabbing}
+.ph{position:absolute;left:16px;top:14px;right:16px;pointer-events:none;max-width:440px}
+.ph .snum{font-family:"Cinzel",Georgia,serif;font-size:.78rem;letter-spacing:.12em;color:var(--gold);font-weight:800}
+.ph .stage-name{font-family:"Gowun Batang",Georgia,serif;font-size:1.25rem;font-weight:700;color:var(--text)}
+.ph .rule{font-size:.82rem;color:var(--muted);margin:2px 0 10px}
+.bar{height:7px;border-radius:99px;background:rgba(127,127,160,.25);overflow:hidden;margin:4px 0 2px}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#7d6bd6,#e2b65a);transition:width .25s}
+.barlbl{display:flex;justify-content:space-between;font-size:.76rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.hint{position:absolute;right:14px;bottom:12px;font-size:.74rem;color:var(--muted);pointer-events:none}
+#banner{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;opacity:0;transition:opacity .5s;width:90%}
+#banner.show{opacity:1}
+#banner .b1{font-family:"Gowun Batang",Georgia,serif;font-size:clamp(1.3rem,3.4vw,2.2rem);font-weight:700;color:var(--text);text-shadow:0 2px 18px var(--bg)}
+#banner .b2{font-size:.9rem;color:var(--muted);margin-top:6px;text-shadow:0 1px 10px var(--bg)}
+.touch{display:none;gap:8px;padding:0 14px 12px;justify-content:center}
+.touch button{flex:1;max-width:76px;height:54px;border-radius:12px;border:1px solid var(--line);background:var(--btn);color:var(--btn-text);font-size:1.25rem;touch-action:none;
+  display:grid;place-items:center;padding:0}
+.touch button:active{background:var(--surface-2)}
+@media (hover:none) and (pointer:coarse){.touch{display:flex}.keyscard{display:none}}
+.overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(10,8,30,.55);z-index:20;padding:20px}
+.overlay.show{display:flex}
+.modal{background:var(--surface);color:var(--text);border-radius:16px;border:1px solid var(--line);max-width:620px;width:100%;max-height:88vh;max-height:88dvh;overflow:auto;padding:26px 26px 22px;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+.modal h2{font-family:"Gowun Batang",Georgia,serif;font-size:1.7rem;margin:0 0 4px}
+.modal h2.logo{font-family:"Cinzel",Georgia,serif;font-weight:800;letter-spacing:.04em}
+.modal .sub{font-family:"Gowun Batang",Georgia,serif;color:var(--gold);margin:0 0 14px}
+.modal p{line-height:1.75;margin:0 0 12px;font-size:.94rem}
+.modal ul{margin:0 0 14px;padding-left:18px;line-height:1.8;font-size:.9rem;color:var(--muted)}
+.cta{font:inherit;font-weight:700;font-size:1rem;padding:12px 22px;border-radius:999px;border:none;background:var(--gold);color:#1b1a33;cursor:pointer}
+.cta.ghost{background:transparent;color:var(--text);border:1px solid var(--line);font-weight:500}
+.cta:disabled{opacity:.4;cursor:default}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.stages{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:10px 0 16px}
+.stg{font:inherit;text-align:left;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--surface-2);color:var(--text);cursor:pointer;display:flex;flex-direction:column;gap:3px;min-height:104px}
+.stg:hover:not(:disabled){border-color:var(--gold)}
+.stg:disabled{cursor:default;opacity:.5}
+.stg .n{font-family:"Cinzel",Georgia,serif;font-weight:800;font-size:.75rem;letter-spacing:.1em;color:var(--gold)}
+.stg .t{font-weight:700;font-size:.92rem}
+.stg .r{font-size:.72rem;color:var(--muted);line-height:1.45}
+.stg .s{font-size:1rem;letter-spacing:2px;color:var(--gold);margin-top:auto}
+.stg .s .off{color:var(--lock)}
+.bigstars{font-size:2.4rem;letter-spacing:6px;color:var(--gold);margin:4px 0 8px}
+.bigstars .off{color:var(--lock)}
+.reslist{font-size:.88rem;color:var(--muted);line-height:1.9;margin:0 0 12px}
+.reslist .ok{color:var(--gold);font-weight:700}
+.codex{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:8px 0 16px}
+.cx{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:4px;background:var(--surface-2)}
+.cx .top{display:flex;align-items:center;gap:8px}
+.cx .nm{font-weight:700;font-size:.9rem}
+.cx .en{font-size:.72rem;color:var(--muted)}
+.cx .ct{font-size:.7rem;color:var(--gold)}
+.cx .ds{font-size:.76rem;color:var(--muted);line-height:1.55}
+.cx .fx{font-size:.76rem;line-height:1.5}
+.cx .cnt{font-size:.72rem;color:var(--muted)}
+.codex h4{grid-column:1/-1;margin:8px 0 0;font-family:"Gowun Batang",Georgia,serif;color:var(--gold)}
+/* ── 화면 모드: js/game.js의 layout()이 body에 mode-portrait / mode-land / mode-wide 를 붙인다 ── */
+/* 세로·가로 휴대폰 공통: 머리줄과 정보 띠를 줄인다 */
+.mode-portrait header,.mode-land header{gap:6px;padding:8px 10px 6px}
+/* 로고 폭은 글자 크기에 비례: 390px 폭에서 버튼 3개와 함께 한 줄에 들어가는 크기(약 3.3vw), 360px 폭까지 보장 */
+.mode-portrait .brand,.mode-land .brand{font-size:clamp(.78rem,3.3vw,1.05rem)}
+.mode-portrait .hbtn,.mode-land .hbtn{font-size:.78rem;padding:6px 8px}
+.side,.modal{word-break:keep-all}
+.mode-portrait #btnPause .lbl,.mode-land #btnPause .lbl{display:none}
+.mode-portrait #btnPause .ico,.mode-land #btnPause .ico{display:block}
+.mode-portrait .side,.mode-land .side{margin-top:6px;gap:6px;overflow:hidden}
+.mode-portrait .side .card,.mode-land .side .card{padding:6px 8px}
+.mode-portrait .side .card h3,.mode-land .side .card h3{font-size:.75rem;margin-bottom:2px}
+.mode-portrait .stat,.mode-land .stat{font-size:.72rem;line-height:1.5}
+.mode-portrait .goals,.mode-land .goals,.mode-portrait .pool-item,.mode-land .pool-item{font-size:.72rem;line-height:1.55}
+.mode-portrait .ph,.mode-land .ph{left:10px;top:8px;right:10px}
+.mode-portrait .ph .stage-name,.mode-land .ph .stage-name{font-size:1rem}
+.mode-portrait .ph .rule,.mode-land .ph .rule{font-size:.74rem;margin-bottom:6px}
+.mode-portrait .hint,.mode-land .hint{display:none}
+/* 정보 띠가 보드보다 길면 layout()이 덜 중요한 카드부터 접는다 */
+.side.t1 .keyscard,.side.t2 .poolcard,.side.t3 .goalcard{display:none}
+/* 세로: 위 궁전(남은 높이 전부), 아래 보드 + 오른쪽 정보 띠, 맨 아래 터치 버튼 */
+.mode-portrait .play{flex-direction:column;gap:8px;padding:0 8px 8px}
+.mode-portrait .right{order:-1;flex:1;min-height:0}
+.mode-portrait .left{flex:none;gap:8px;justify-content:center}
+/* 가로 휴대폰: 보드·정보·궁전 한 줄, 왼손은 이동·내리기, 오른손은 회전·보석 순환·떨구기 */
+.mode-land header{padding:4px 12px 2px}
+.mode-land .play{gap:8px;padding:0 140px 8px}
+.mode-land .touch{position:fixed;inset:0;z-index:5;pointer-events:none;display:grid;gap:8px;
+  grid-template-columns:58px 58px 1fr 58px 58px;grid-template-rows:1fr 58px 58px;
+  padding:0 calc(8px + env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) calc(8px + env(safe-area-inset-left,0px))}
+.mode-land .touch button{max-width:none;height:auto;pointer-events:auto}
+.mode-land .touch [data-act=left]{grid-area:2/1}
+.mode-land .touch [data-act=right]{grid-area:2/2}
+.mode-land .touch [data-act=down]{grid-area:3/1/4/3}
+.mode-land .touch [data-act=rot]{grid-area:2/4}
+.mode-land .touch [data-act=cycle]{grid-area:2/5}
+.mode-land .touch [data-act=drop]{grid-area:3/4/4/6}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}#banner{transition:none}}
